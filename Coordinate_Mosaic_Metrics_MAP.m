@@ -325,8 +325,8 @@ for i=1:size(fnamelist,1)
 
                     thisval = statistics{c}.(metriclist{selectedmetric}); 
 
-                    rowrange = round(coords(c,2)-(pixelwindowsize/2):coords(c,2)+(pixelwindowsize/2));
-                    colrange = round(coords(c,1)-(pixelwindowsize/2):coords(c,1)+(pixelwindowsize/2));
+                    rowrange = round(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2));
+                    colrange = round(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
 
                     rowrange(rowrange<1) =[];
                     colrange(colrange<1) =[];
