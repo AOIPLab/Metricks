@@ -197,15 +197,29 @@ for i=1:size(fnamelist,1)
 
             if isnan(scaleinput)
                 % Calculate the scale for this identifier.                                
-                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) );
+                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) ); %finds locations in lutData{1} that have matching IDs or eyes as the file names
 
-                % Use whichever scale is most similar to our filename.
-                sim = 1000*ones(length(LUTindex),1);
-                for l=1:length(LUTindex)
-                    sim(l) = lev(fnamelist{i}, lutData{1}{LUTindex(l)});
+                % JG addition/bug fix 12/7/2022
+                % find the index for the file that matches id and eye info
+                for x=1:length(LUTindex)
+                    val = LUTindex(x+1) - LUTindex(x);
+                    if val == 1
+                        LUTindex = LUTindex(x);
+                        break
+                    end
                 end
-                [~,simind]=min(sim);
-                LUTindex = LUTindex(simind);
+                
+                % bug in orignal section below where if there are two eyes with the
+                % same id it will always chose whichever file is first even
+                % if it is the incorrect eye - JG commented out 12/7/22
+                
+%                 % Use whichever scale is most similar to our filename.
+%                 sim = 1000*ones(length(LUTindex),1);
+%                 for l=1:length(LUTindex)
+%                     sim(l) = lev(fnamelist{i}, lutData{1}{LUTindex(l)});
+%                 end
+%                 [~,simind]=min(sim);
+%                 LUTindex = LUTindex(simind);
                 
                 axiallength = lutData{2}(LUTindex);
                 pixelsperdegree = lutData{3}(LUTindex);
