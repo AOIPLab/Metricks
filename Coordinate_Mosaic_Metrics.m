@@ -202,7 +202,11 @@ for i=1:size(fnamelist,1)
                 % JG addition/bug fix 12/7/2022
                 % find the index for the file that matches id and eye info
                 for x=1:size(LUTindex, 1)
-                    val = LUTindex(x+1) - LUTindex(x);
+                    if x == size(LUTindex, 1) % if it is the last/only item in the LUT - if only matches with the eye and not subID will have axial length as NAN (would happen if LUT doesn't have info needed for this dataset)
+                        LUTindex = LUTindex(x);
+                        break
+                    end
+                    val = LUTindex(x+1) - LUTindex(x); % checking if there are two eyes from the same subject in LUT
                     if val == 1
                         LUTindex = LUTindex(x);
                         break
