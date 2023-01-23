@@ -141,11 +141,11 @@ path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 
 [basepath] = uigetdir(pwd);
 
-[fnamelist, isdir ] = read_folder_contents(basepath,'csv');
-[fnamelisttxt, isdirtxt ] = read_folder_contents(basepath,'txt');
+[fnamelist, isadir ] = read_folder_contents(basepath,'csv');
+[fnamelisttxt, isadirtxt ] = read_folder_contents(basepath,'txt');
 
 fnamelist = [fnamelist; fnamelisttxt];
-isdir = [isdir;isdirtxt];
+isadir = [isadir;isadirtxt];
 
 
 liststr = {'microns (mm density)','degrees','arcmin'};
@@ -185,7 +185,7 @@ proghand = waitbar(0,'Processing...');
 for i=1:size(fnamelist,1)
 
     try
-        if ~isdir(i)
+        if ~isadir{i}
 
             
             if length(fnamelist{i})>42
