@@ -99,11 +99,11 @@ path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 
 [basepath] = uigetdir(pwd);
 
-[fnamelist, isdir ] = read_folder_contents(basepath,'csv');
-[fnamelisttxt, isdirtxt ] = read_folder_contents(basepath,'txt');
+[fnamelist, isadir ] = read_folder_contents(basepath,'csv');
+[fnamelisttxt, isadirtxt ] = read_folder_contents(basepath,'txt');
 
 fnamelist = [fnamelist; fnamelisttxt];
-isdir = [isdir;isdirtxt];
+isadir = [isadir;isadirtxt];
 
 liststr = {'microns (mm density)','degrees','arcmin'};
 [selectedunit, oked] = listdlg('PromptString','Select output units:',...
@@ -142,7 +142,7 @@ proghand = waitbar(0,'Processing...');
 for i=1:size(fnamelist,1)
 
     try
-        if ~isdir(i)
+        if ~isadir{i}
 
             
             if length(fnamelist{i})>42
@@ -155,13 +155,17 @@ for i=1:size(fnamelist,1)
                 % Calculate the scale for this identifier.                                
                 LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) );
 
-                % Use whichever scale is most similar to our filename.
-                sim = 1000*ones(length(LUTindex),1);
-                for l=1:length(LUTindex)
-                    sim(l) = lev(fnamelist{i}, lutData{1}{LUTindex(l)});
+                for x=1:size(LUTindex, 1)
+                    if x == size(LUTindex, 1) % if it is the last/only item in the LUT - if only matches with the eye and not subID will have axial length as NAN (would happen if LUT doesn't have info needed for this dataset)
+                        LUTindex = LUTindex(x);
+                        break
+                    end
+                    val = LUTindex(x+1) - LUTindex(x); % checking if there are two eyes from the same subject in LUT
+                    if val == 1
+                        LUTindex = LUTindex(x);
+                        break
+                    end
                 end
-                [~,simind]=min(sim);
-                LUTindex = LUTindex(simind);
                 
                 axiallength = lutData{2}(LUTindex);
                 pixelsperdegree = lutData{3}(LUTindex);
@@ -276,8 +280,8 @@ for i=1:size(fnamelist,1)
             %% Actually calculate the statistics
             parfor c=1:size(coords,1)
                 
-                rowborders = round([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]);
-                colborders = round([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
+                rowborders = ceil([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]);
+                colborders = ceil([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
 
                 rowborders(rowborders<1) =1;
                 colborders(colborders<1) =1;
@@ -325,13 +329,13 @@ for i=1:size(fnamelist,1)
 
                     thisval = statistics{c}.(metriclist{selectedmetric}); 
 
-                    rowrange = round(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2));
-                    colrange = round(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
+                    rowrange = ceil(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2));
+                    colrange = ceil(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
 
                     rowrange(rowrange<1) =[];
                     colrange(colrange<1) =[];
-                    rowrange(rowrange>maxrowval) =[];
-                    colrange(colrange>maxcolval) =[];
+                    rowrange(rowrange>height) =[];
+                    colrange(colrange>width) =[];
                     
                     interped_map(rowrange,colrange) = interped_map(rowrange,colrange) + thisval;
                     sum_map(rowrange, colrange) = sum_map(rowrange, colrange) + 1;
