@@ -197,20 +197,20 @@ for i=1:size(fnamelist,1)
 
             if exist(fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']), 'file')
 
-                    im = imread( fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
+                im = imread( fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
 
-                    width = size(im,2);
-                    height = size(im,1);
-                    maxrowval = height;
-                    maxcolval = width;
-                else
-
-                    coords = coords-min(coords)+1;
-                    width  = ceil(max(coords(:,1)));
-                    height = ceil(max(coords(:,2)));
-                    maxrowval = max(coords(:,2));
-                    maxcolval = max(coords(:,1));
-                end
+                width = size(im,2);
+                height = size(im,1);
+                maxrowval = height;
+                maxcolval = width;
+            else
+                warning(['No matching image file found for ' fnamelist{i}]);
+                coords = coords-min(coords)+1;
+                width  = ceil(max(coords(:,1)));
+                height = ceil(max(coords(:,2)));
+                maxrowval = max(coords(:,2));
+                maxcolval = max(coords(:,1));
+            end
 
                 statistics = cell(size(coords,1),1);
             
