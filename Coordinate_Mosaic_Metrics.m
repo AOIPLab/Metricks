@@ -274,7 +274,7 @@ for i=1:size(fnamelist,1)
 
                 clip_start_end = [diffwidth  width-diffwidth diffheight height-diffheight];
             else
-
+                warning(['No matching image file found for ' fnamelist{i}]);
                 width  = max(coords(:,1)) - min(coords(:,1));
                 height = max(coords(:,2)) - min(coords(:,2));
 
