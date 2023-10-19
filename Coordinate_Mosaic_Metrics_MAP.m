@@ -83,7 +83,11 @@
 % cells on one side, the center will shift towards the other side of the image.
 %
 % This script creates a map of metrics from a selected folder.
-
+% Modified by Joe Carroll on 2/22/22 to add in some figure outputs
+% Updated 339 & 340 to be pixelwindowsize(c), was previously
+% pixelwindowsize
+% Modified 10-11-23 to correct map scaling issue with Rob (was using max of
+% the interped map, should use max of clims
 
 clear;
 close all force;
@@ -92,18 +96,20 @@ WINDOW_SIZE = [];
 
 %% Crop the coordinates/image to this size in [scale], and calculate the area from it.
 % If left empty, it uses the size of the image.
-basePath = which('Coordinate_Mosaic_Metrics.m');
+
+
+basePath = which('Coordinate_Mosaic_Metrics_MAP_110822_jc3.m');
 
 [basePath ] = fileparts(basePath);
 path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 
 [basepath] = uigetdir(pwd);
 
-[fnamelist, isadir ] = read_folder_contents(basepath,'csv');
-[fnamelisttxt, isadirtxt ] = read_folder_contents(basepath,'txt');
+[fnamelist, isdir ] = read_folder_contents(basepath,'csv');
+[fnamelisttxt, isdirtxt ] = read_folder_contents(basepath,'txt');
 
 fnamelist = [fnamelist; fnamelisttxt];
-isadir = [isadir;isadirtxt];
+isdir = [isdir;isdirtxt];
 
 liststr = {'microns (mm density)','degrees','arcmin'};
 [selectedunit, oked] = listdlg('PromptString','Select output units:',...
@@ -134,6 +140,7 @@ else
     [~, lutData] = load_scaling_file(fullfile(scalingpath,scalingfname));
 end
 
+
 %%
 first = true;
 
@@ -142,7 +149,7 @@ proghand = waitbar(0,'Processing...');
 for i=1:size(fnamelist,1)
 
     try
-        if ~isadir{i}
+        if ~isdir{i}
 
             
             if length(fnamelist{i})>42
@@ -155,17 +162,13 @@ for i=1:size(fnamelist,1)
                 % Calculate the scale for this identifier.                                
                 LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) );
 
-                for x=1:size(LUTindex, 1)
-                    if x == size(LUTindex, 1) % if it is the last/only item in the LUT - if only matches with the eye and not subID will have axial length as NAN (would happen if LUT doesn't have info needed for this dataset)
-                        LUTindex = LUTindex(x);
-                        break
-                    end
-                    val = LUTindex(x+1) - LUTindex(x); % checking if there are two eyes from the same subject in LUT
-                    if val == 1
-                        LUTindex = LUTindex(x);
-                        break
-                    end
+                % Use whichever scale is most similar to our filename.
+                sim = 1000*ones(length(LUTindex),1);
+                for l=1:length(LUTindex)
+                    sim(l) = lev(fnamelist{i}, lutData{1}{LUTindex(l)});
                 end
+                [~,simind]=min(sim);
+                LUTindex = LUTindex(simind);
                 
                 axiallength = lutData{2}(LUTindex);
                 pixelsperdegree = lutData{3}(LUTindex);
@@ -197,20 +200,20 @@ for i=1:size(fnamelist,1)
 
             if exist(fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']), 'file')
 
-                im = imread( fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
+                    im = imread( fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
 
-                width = size(im,2);
-                height = size(im,1);
-                maxrowval = height;
-                maxcolval = width;
-            else
-                warning(['No matching image file found for ' fnamelist{i}]);
-                coords = coords-min(coords)+1;
-                width  = ceil(max(coords(:,1)));
-                height = ceil(max(coords(:,2)));
-                maxrowval = max(coords(:,2));
-                maxcolval = max(coords(:,1));
-            end
+                    width = size(im,2);
+                    height = size(im,1);
+                    maxrowval = height;
+                    maxcolval = width;
+                else
+
+                    coords = coords-min(coords)+1;
+                    width  = ceil(max(coords(:,1)));
+                    height = ceil(max(coords(:,2)));
+                    maxrowval = max(coords(:,2));
+                    maxcolval = max(coords(:,1));
+                end
 
                 statistics = cell(size(coords,1),1);
             
@@ -220,7 +223,7 @@ for i=1:size(fnamelist,1)
                 
             else
                 
-                upper_bound = 150;
+                upper_bound = 150; %this is the number of BOUND cells to include
                 
                 if upper_bound > size(coords,1)
                     upper_bound = size(coords,1);
@@ -229,12 +232,12 @@ for i=1:size(fnamelist,1)
                 % Determine the window size dynamically for each coordinate
                 pixelwindowsize = zeros(size(coords,1),1);
 
-                parfor c=1:size(coords,1)
+                parfor c=1:size(coords,1)               
 
                     thiswindowsize=1;
                     clipped_coords=[];
                     numbound=0;
-                    while numbound < upper_bound
+                     while numbound < upper_bound
                         thiswindowsize = thiswindowsize+1;
                         rowborders = ([coords(c,2)-(thiswindowsize/2) coords(c,2)+(thiswindowsize/2)]);
                         colborders = ([coords(c,1)-(thiswindowsize/2) coords(c,1)+(thiswindowsize/2)]);
@@ -246,42 +249,39 @@ for i=1:size(fnamelist,1)
 
                         clipped_coords =coordclip(coords,colborders,...
                                                          rowborders,'i');
-                        if size(clipped_coords,1) > 5
-                            % Next, create voronoi diagrams from the cells we've clipped.                             
-                            [V,C] = voronoin(clipped_coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
+                        
+                        % Ensure we're working with bound cells only.
+                         if size(clipped_coords,1) > 5
+                             % Next, create voronoi diagrams from the cells we've clipped.                             
+                             [V,C] = voronoin(clipped_coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
+ 
+                             bound = zeros(length(C),1);
+                             for vc=1:length(C)
+ 
+                                 vertices=V(C{vc},:);
+ 
+                                 if (all(C{vc}~=1)  && all(vertices(:,1)<colborders(2)) && all(vertices(:,2)<rowborders(2)) ... % [xmin xmax ymin ymax] 
+                                                  && all(vertices(:,1)>colborders(1)) && all(vertices(:,2)>rowborders(1))) 
+                                     bound(vc) = 1;
+                          
+                                 end
+                             end
+ 
+                             numbound = sum(bound);
+                         end
 
-%                             figure(10);
-%                             clf;hold on;
-
-                            bound = zeros(length(C),1);
-                            for vc=1:length(C)
-
-                                vertices=V(C{vc},:);
-
-                                if (all(C{vc}~=1)  && all(vertices(:,1)<colborders(2)) && all(vertices(:,2)<rowborders(2)) ... % [xmin xmax ymin ymax] 
-                                                 && all(vertices(:,1)>colborders(1)) && all(vertices(:,2)>rowborders(1))) 
-                                    bound(vc) = 1;
-                                    
-%                                     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','b');                                   
-%                                 else                                    
-%                                     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','r');                                    
-                                end
-                            end
-
-                            numbound = sum(bound);
-                        end
-
-                    end
+                     end
 %                     axis([colborders rowborders])
                     pixelwindowsize(c) = thiswindowsize;
                 end
             end
             disp('Determined window size.')
+            
             %% Actually calculate the statistics
-            parfor c=1:size(coords,1)
+            for c=1:size(coords,1)
                 
-                rowborders = ceil([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]);
-                colborders = ceil([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
+                rowborders = round([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
+                colborders = round([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
 
                 rowborders(rowborders<1) =1;
                 colborders(colborders<1) =1;
@@ -290,6 +290,10 @@ for i=1:size(fnamelist,1)
                 
                 clipped_coords =coordclip(coords,colborders,...
                                                  rowborders,'i');
+                                             
+                ccc=length(clipped_coords);
+                % disp(ccc) if you want the number of clipped coordinates
+                % displayed
                 % [xmin xmax ymin ymax] 
                 clip_start_end = [colborders rowborders];
                 
@@ -312,15 +316,19 @@ for i=1:size(fnamelist,1)
            
             
             %% Map output
-            metriclist = fieldnames(statistics{1});
-            [selectedmetric, oked] = listdlg('PromptString','Select map metric:',...
-                                          'SelectionMode','single',...
-                                          'ListString',metriclist);
-            
-            if oked == 0
-                error('Cancelled by user.');
-            end
-                                      
+%             metriclist = fieldnames(statistics{1});
+%              [selectedmetric, oked] = listdlg('PromptString','Select map metric:',...
+%                                            'SelectionMode','single',...
+%                                            'ListString',metriclist);
+%              
+%              if oked == 0
+%                  error('Cancelled by user.');
+%             end
+
+             %Hard code selection for bound density - added by JC 2/19/22
+             metriclist = fieldnames(statistics{1});
+             selectedmetric = 5; %5 = bound density, 7 = bound ICD      
+
             interped_map=zeros([height width]);
             sum_map=zeros([height width]);
 
@@ -329,14 +337,14 @@ for i=1:size(fnamelist,1)
 
                     thisval = statistics{c}.(metriclist{selectedmetric}); 
 
-                    rowrange = ceil(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2));
-                    colrange = ceil(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
+                    rowrange = round(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2)); %fixedwith added c
+                    colrange = round(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
 
                     rowrange(rowrange<1) =[];
                     colrange(colrange<1) =[];
-                    rowrange(rowrange>height) =[];
-                    colrange(colrange>width) =[];
-                    
+                    rowrange(rowrange>maxrowval) =[];
+                    colrange(colrange>maxcolval) =[];
+                  
                     interped_map(rowrange,colrange) = interped_map(rowrange,colrange) + thisval;
                     sum_map(rowrange, colrange) = sum_map(rowrange, colrange) + 1;
 
@@ -346,7 +354,16 @@ for i=1:size(fnamelist,1)
             interped_map = interped_map./sum_map;
 
             interped_map(isnan(interped_map)) =0;
-            dispfig=figure(1); imagesc(interped_map); axis image; colorbar;
+            
+            vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
+            
+            clims = [50000 225000]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
+            
+            dispfig=figure(1); 
+            imagesc(interped_map,clims); % added to use limits of color scale, by Joe 2/19/22
+            axis image;
+            colormap(vmap); 
+            colorbar; 
             [minval, minind] = min(interped_map(:));
             [maxval, maxind] = max(interped_map(:));
             
@@ -356,18 +373,31 @@ for i=1:size(fnamelist,1)
             max_x_vals = maxcol;
             max_y_vals = maxrow;
             
+            subjectID = lutData{1};% extract subject ID; added by Katie Litts in 2019
+            disp([subjectID{LUTindex} ' Maximum value: ' num2str(round(maxval)) '(' num2str(maxcol) ',' num2str(maxrow) ')' ]) % display added by Katie Litts in 2019
+                       
             title(['Minimum value: ' num2str(minval) '(' num2str(mincol) ',' num2str(minrow) ') Maximum value: ' num2str(maxval) '(' num2str(maxcol) ',' num2str(maxrow) ')'])
-            
             
             result_fname = [fnamelist{i}(1:end-4) '_bound_map_' date '_' num2str(WINDOW_SIZE) metriclist{selectedmetric}];
             
             saveas(gcf,fullfile(basepath,'Results', [result_fname '_fig.png']));
-            saveas(gcf,fullfile(basepath,'Results', [result_fname '_fig.svg']));
+            %updated to scale to the max of clims 10/11/23     
+            scaled_map = interped_map-min(clims);
+            scaled_map(scaled_map <0) =0; %in case there are min values below this
+            scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
+            scaled_map(scaled_map  >255) = 255; %in case there are values above this
+            imwrite(scaled_map, vmap, fullfile(basepath,'Results',[result_fname '_raw5.tif'])); %added by Joe Carroll 
             
-            scaled_map = interped_map-min(interped_map(:));
-            scaled_map = uint8(255*scaled_map./max(scaled_map(:)));
-            imwrite(scaled_map, parula(256), fullfile(basepath,'Results', [result_fname '_raw.tif']))
+            %Adding an output image with the marked location of peak density, added by Joe Carroll 2/19/22, updated to scale to the
+            %max of clims 10/11/23
+            scaled_map_mark = uint8(255*interped_map./max(clims));
+            MARK = insertShape(scaled_map_mark,'circle',[maxcol maxrow 2], 'LineWidth' ,3, 'Color' , 'red');
+            imwrite(MARK, vmap, fullfile(basepath,'Results',[result_fname '_marked.tif']));
 
+            %save matrix of density values, added by Jenna Cava
+            filename = fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_' date '.csv']);
+            writematrix(interped_map, filename);
+             
             %%
         end
     catch ex
