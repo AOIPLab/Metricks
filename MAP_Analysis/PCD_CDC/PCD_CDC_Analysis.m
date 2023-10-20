@@ -10,7 +10,7 @@ clear all
 close all
 clc
 
-basepath = which('PCD_CDC_Analysis_v3.m');
+basepath = which('PCD_CDC_Analysis.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib2')); % Add our support library to the path.
 %[basepath] = uigetdir(pwd); %select folder

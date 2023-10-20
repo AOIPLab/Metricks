@@ -10,7 +10,7 @@ clear all
 close all
 clc
 
-basePath = which('Plot_Isodensity_Contours_Overlay_v2.m');
+basePath = which('Plot_Isodensity_Contours_Overlay.m');
 [basePath] = fileparts(basePath);
 path(path,fullfile(basePath,'lib3')); % Add our support library to the path.
 [basepath] = uigetdir(pwd);
@@ -19,7 +19,8 @@ path(path,fullfile(basePath,'lib3')); % Add our support library to the path.
 
 for i = 1:length(fnamelist)
     
-    densitymap = csvread(fnamelist{i});
+    temp = fullfile(basepath, fnamelist{i});
+    densitymap = csvread(temp);
     peak = max(densitymap(:));
     
     [maxval, maxind] = max(densitymap(:));  

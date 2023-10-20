@@ -98,7 +98,7 @@ WINDOW_SIZE = [];
 % If left empty, it uses the size of the image.
 
 
-basePath = which('Coordinate_Mosaic_Metrics_MAP_110822_jc3.m');
+basePath = which('Coordinate_Mosaic_Metrics_MAP.m');
 
 [basePath ] = fileparts(basePath);
 path(path,fullfile(basePath,'lib')); % Add our support library to the path.
