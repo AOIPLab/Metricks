@@ -119,12 +119,12 @@ Every metric that is run via the main "Coordinate_Mosaic_Metrics.m" script has b
 **This package is free for use under GPL v3, but I ask that you please cite the above paper if you use this package.**
 
 
-AOIP Additions:
+# AOIP Lab Additions:
 
 - Bug Fixes to the Coordinate_Mosaic_Metrics_MAP script.
-- Density map analysis scripts located in the MAP_Analysis folder
+- Density map analysis scripts located in the MAP_Analysis folder.
 	- Isodensity_Contours folder contains scripts to create and plot isodensity contours at varying percentiles. 
 	- Matrix_Operations folder contains scripts for mathematical operations to be performed on the Maps (subration and averaging)
-	- PCD_CDC folder contains PCD_CDC_Analysis which determines the peak cone density and the cone density centroid and PCD_CDC_Location_Comparison_95	  _CI which compares PCD and CDC locations between either graders or window size and creates an error ellipse for the 95 percentile confidence 	  	  interval.
+	- PCD_CDC folder contains PCD_CDC_Analysis which determines the peak cone density and the cone density centroid and PCD_CDC_Location_Comparison_95_CI which compares PCD and CDC locations between either graders or window size and creates an error ellipse for the 95 percentile confidence interval.
 
 
