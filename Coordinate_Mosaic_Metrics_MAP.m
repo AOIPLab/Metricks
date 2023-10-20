@@ -105,11 +105,11 @@ path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 
 [basepath] = uigetdir(pwd);
 
-[fnamelist, isdir ] = read_folder_contents(basepath,'csv');
+[fnamelist, isadir ] = read_folder_contents(basepath,'csv');
 [fnamelisttxt, isdirtxt ] = read_folder_contents(basepath,'txt');
 
 fnamelist = [fnamelist; fnamelisttxt];
-isdir = [isdir;isdirtxt];
+isadir = [isadir;isdirtxt];
 
 liststr = {'microns (mm density)','degrees','arcmin'};
 [selectedunit, oked] = listdlg('PromptString','Select output units:',...
@@ -140,7 +140,6 @@ else
     [~, lutData] = load_scaling_file(fullfile(scalingpath,scalingfname));
 end
 
-
 %%
 first = true;
 
@@ -149,7 +148,7 @@ proghand = waitbar(0,'Processing...');
 for i=1:size(fnamelist,1)
 
     try
-        if ~isdir{i}
+        if ~isadir{i}
 
             
             if length(fnamelist{i})>42
@@ -162,13 +161,17 @@ for i=1:size(fnamelist,1)
                 % Calculate the scale for this identifier.                                
                 LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) );
 
-                % Use whichever scale is most similar to our filename.
-                sim = 1000*ones(length(LUTindex),1);
-                for l=1:length(LUTindex)
-                    sim(l) = lev(fnamelist{i}, lutData{1}{LUTindex(l)});
+                for x=1:size(LUTindex, 1)
+                    if x == size(LUTindex, 1) % if it is the last/only item in the LUT - if only matches with the eye and not subID will have axial length as NAN (would happen if LUT doesn't have info needed for this dataset)
+                        LUTindex = LUTindex(x);
+                        break
+                    end
+                    val = LUTindex(x+1) - LUTindex(x); % checking if there are two eyes from the same subject in LUT
+                    if val == 1
+                        LUTindex = LUTindex(x);
+                        break
+                    end
                 end
-                [~,simind]=min(sim);
-                LUTindex = LUTindex(simind);
                 
                 axiallength = lutData{2}(LUTindex);
                 pixelsperdegree = lutData{3}(LUTindex);
@@ -200,22 +203,22 @@ for i=1:size(fnamelist,1)
 
             if exist(fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']), 'file')
 
-                    im = imread( fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
+                im = imread( fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
 
-                    width = size(im,2);
-                    height = size(im,1);
-                    maxrowval = height;
-                    maxcolval = width;
-                else
+                width = size(im,2);
+                height = size(im,1);
+                maxrowval = height;
+                maxcolval = width;
+            else
+                warning(['No matching image file found for ' fnamelist{i}]);
+                coords = coords-min(coords)+1;
+                width  = ceil(max(coords(:,1)));
+                height = ceil(max(coords(:,2)));
+                maxrowval = max(coords(:,2));
+                maxcolval = max(coords(:,1));
+            end
 
-                    coords = coords-min(coords)+1;
-                    width  = ceil(max(coords(:,1)));
-                    height = ceil(max(coords(:,2)));
-                    maxrowval = max(coords(:,2));
-                    maxcolval = max(coords(:,1));
-                end
-
-                statistics = cell(size(coords,1),1);
+            statistics = cell(size(coords,1),1);
             
             if ~isempty(WINDOW_SIZE)
                 
@@ -237,7 +240,7 @@ for i=1:size(fnamelist,1)
                     thiswindowsize=1;
                     clipped_coords=[];
                     numbound=0;
-                     while numbound < upper_bound
+                    while numbound < upper_bound
                         thiswindowsize = thiswindowsize+1;
                         rowborders = ([coords(c,2)-(thiswindowsize/2) coords(c,2)+(thiswindowsize/2)]);
                         colborders = ([coords(c,1)-(thiswindowsize/2) coords(c,1)+(thiswindowsize/2)]);
@@ -280,8 +283,8 @@ for i=1:size(fnamelist,1)
             %% Actually calculate the statistics
             for c=1:size(coords,1)
                 
-                rowborders = round([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
-                colborders = round([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
+                rowborders = ceil([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
+                colborders = ceil([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
 
                 rowborders(rowborders<1) =1;
                 colborders(colborders<1) =1;
@@ -291,7 +294,7 @@ for i=1:size(fnamelist,1)
                 clipped_coords =coordclip(coords,colborders,...
                                                  rowborders,'i');
                                              
-                ccc=length(clipped_coords);
+                %ccc=length(clipped_coords);
                 % disp(ccc) if you want the number of clipped coordinates
                 % displayed
                 % [xmin xmax ymin ymax] 
@@ -326,8 +329,8 @@ for i=1:size(fnamelist,1)
 %             end
 
              %Hard code selection for bound density - added by JC 2/19/22
-             metriclist = fieldnames(statistics{1});
-             selectedmetric = 5; %5 = bound density, 7 = bound ICD      
+            metriclist = fieldnames(statistics{1});
+            selectedmetric = 5; %5 = bound density, 7 = bound ICD      
 
             interped_map=zeros([height width]);
             sum_map=zeros([height width]);
@@ -335,18 +338,18 @@ for i=1:size(fnamelist,1)
             
             for c=1:size(coords,1)
 
-                    thisval = statistics{c}.(metriclist{selectedmetric}); 
+                thisval = statistics{c}.(metriclist{selectedmetric}); 
 
-                    rowrange = round(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2)); %fixedwith added c
-                    colrange = round(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
+                rowrange = ceil(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2));
+                colrange = ceil(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
 
-                    rowrange(rowrange<1) =[];
-                    colrange(colrange<1) =[];
-                    rowrange(rowrange>maxrowval) =[];
-                    colrange(colrange>maxcolval) =[];
-                  
-                    interped_map(rowrange,colrange) = interped_map(rowrange,colrange) + thisval;
-                    sum_map(rowrange, colrange) = sum_map(rowrange, colrange) + 1;
+                rowrange(rowrange<1) =[];
+                colrange(colrange<1) =[];
+                rowrange(rowrange>height) =[];
+                colrange(colrange>width) =[];
+              
+                interped_map(rowrange,colrange) = interped_map(rowrange,colrange) + thisval;
+                sum_map(rowrange, colrange) = sum_map(rowrange, colrange) + 1;
 
             end
                 %
