@@ -278,7 +278,7 @@ for i=1:size(fnamelist,1)
             disp('Determined window size.')
             
             %% Actually calculate the statistics
-            for c=1:size(coords,1)
+            parfor c=1:size(coords,1)
                 
                 rowborders = round([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
                 colborders = round([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
