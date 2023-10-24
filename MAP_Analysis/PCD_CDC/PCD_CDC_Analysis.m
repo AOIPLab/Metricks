@@ -77,6 +77,14 @@ for i=1:size(fnamelist,1)
         all_maxes{count,1} = {fnamelist{i}, all_max_coords(j,1), all_max_coords(j,2)};
         count = count +1;
     end
+
+    % two ways of finding the centroid of the max values
+    mean_x = mean(max_x_coords);
+    mean_y = mean(max_y_coords);
+
+    mid_x = (min(max_x_coords) + max(max_x_coords))/2;
+    mid_y = (min(max_y_coords) + max(max_y_coords))/2;
+    % unsure yet which one to go with
    
     threshold80 = (densitymap >= (0.8*peak));
     contour80 = edge(threshold80);
@@ -121,13 +129,8 @@ for i=1:size(fnamelist,1)
     imwrite(f.cdata, fullfile(basepath,[result_fname '80.tif']));
     
        
-    %jg
+    % writing only the contour
     imwrite(contour80, fullfile(basepath,[result_fname '80_only.tif']));
-    %jg
-      
-    %fixed x and y coordinates to be correct - JG
-    %[y, x] = find(contour80 == 1);
-    %coords = [x,y];
           
     %Joe's modification
     [y, x] = find(contour80(:,:,2) == 1); %This seems to be correct
