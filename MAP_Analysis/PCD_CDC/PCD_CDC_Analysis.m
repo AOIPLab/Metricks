@@ -17,6 +17,17 @@ path(path,fullfile(basepath,'lib2')); % Add our support library to the path.
 [fnamelist] = read_folder_contents(basepath,'csv');
 [scalingfname, scalingpath] = uigetfile(fullfile(basepath,'*.csv'),'Select scaling LUT.');
 
+% Threshold percentile selection by the user
+list = {'95', '90', '85', '80', '75', '70', '65', '60', '55', '50', '45', '40', '35', '30', '25', '20', '15', '10', '5'};
+[indx, tf] = listdlg('PromptString', 'Select the desired threshold percentile.', 'SelectionMode', 'single', 'ListString', list);
+if tf == 1
+    threshold_percentile = str2num(list{indx})/100;
+    thresh_str = list{indx};
+else
+    % canceled dialog box - end the program
+    return
+end
+
 scaleinput = NaN;
 if scalingfname == 0        
     
@@ -64,10 +75,7 @@ for i=1:size(fnamelist,1)
     densitymap = csvread(fnamelist{i});
     peak = max(densitymap(:));
     
-    [maxval, maxind] = max(densitymap(:));  
-    [maxrow,maxcol]=ind2sub(size(densitymap),maxind);       
-    max_x = maxcol;
-    max_y = maxrow;
+    [maxval, maxind] = max(densitymap(:));
 
     % check that the max value is unique
     max_indices = find(densitymap == maxval);           
@@ -78,74 +86,70 @@ for i=1:size(fnamelist,1)
         count = count +1;
     end
 
-    % two ways of finding the centroid of the max values
-    mean_x = mean(max_x_coords);
-    mean_y = mean(max_y_coords);
-
-    mid_x = (min(max_x_coords) + max(max_x_coords))/2;
-    mid_y = (min(max_y_coords) + max(max_y_coords))/2;
-    % unsure yet which one to go with
+    % finding the weighted (mean) centoid if multiple max locations found
+    centroid_x = mean(max_x_coords);
+    centroid_y = mean(max_y_coords);
    
-    threshold80 = (densitymap >= (0.8*peak));
-    contour80 = edge(threshold80);
+    threshold = (densitymap >= (threshold_percentile*peak));
+    contour = edge(threshold);
     
-    %added for area of 80
-    pxareaAboveThresh80 = sum(sum(threshold80 == 1)); %Area in total pixels above 80% threshold using matrix
-    umareaAboveThresh80 = (pxareaAboveThresh80*(scaleval^2)); %Area in um2 above 80% threshold using matrix
+    %added for area
+    pxareaAboveThresh = sum(sum(threshold == 1)); %Area in total pixels above % threshold using matrix
+    umareaAboveThresh = (pxareaAboveThresh*(scaleval^2)); %Area in um2 above % threshold using matrix
     
     % added for ellipse
-    [y80, x80] = find(contour80);  % x and y are column vectors.
-    ellipsefit80 = fit_ellipse(x80,y80);
-    coord80 = [ellipsefit80.X0_in, ellipsefit80.Y0_in];
-    contour80 = double(contour80);
+    [y_thresh, x_thresh] = find(contour);  % x and y are column vectors.
+    ellipsefit_thresh = fit_ellipse(x_thresh,y_thresh);
+    coord_thresh = [ellipsefit_thresh.X0_in, ellipsefit_thresh.Y0_in];
+    contour = double(contour);
     CMap = [0,0,0; 0,1,0];
-    contour80  = ind2rgb(contour80 + 1, CMap);  
+    contour  = ind2rgb(contour + 1, CMap);  
     
     % rotation matrix to rotate the axes with respect to an angle phi
-    cos_phi = cos( ellipsefit80.phi );
-    sin_phi = sin( ellipsefit80.phi );
+    cos_phi = cos( ellipsefit_thresh.phi );
+    sin_phi = sin( ellipsefit_thresh.phi );
     R = [ cos_phi sin_phi; -sin_phi cos_phi ];
 
     % the ellipse
     theta_r         = linspace(0,2*pi);
-    ellipse_x_r     = ellipsefit80.X0 + ellipsefit80.a*cos( theta_r );
-    ellipse_y_r     = ellipsefit80.Y0 + ellipsefit80.b*sin( theta_r );
+    ellipse_x_r     = ellipsefit_thresh.X0 + ellipsefit_thresh.a*cos( theta_r );
+    ellipse_y_r     = ellipsefit_thresh.Y0 + ellipsefit_thresh.b*sin( theta_r );
     rotated_ellipse = R * [ellipse_x_r;ellipse_y_r];
     %unrotated_ellipse = [ellipse_x_r;ellipse_y_r];
 
     figure;
-    imshow(contour80);
+    imshow(contour);
     hold on;
     plot( rotated_ellipse(1,:),rotated_ellipse(2,:),'r' );
     %plot( unrotated_ellipse(1,:),unrotated_ellipse(2,:),'r' );
-    plot(ellipsefit80.X0_in, ellipsefit80.Y0_in, '*b');
-    plot(max_x, max_y, '*r');
+    plot(ellipsefit_thresh.X0_in, ellipsefit_thresh.Y0_in, '*b');
+    plot(centroid_x, centroid_y, '*r');
     
     hold off;
     axis off;
     
     result_fname = [fnamelist{i} '_bestFitEllipse_'];
     f=getframe;
-    imwrite(f.cdata, fullfile(basepath,[result_fname '80.tif']));
+    imwrite(f.cdata, fullfile(basepath,[result_fname thresh_str '.tif']));
     
        
     % writing only the contour
-    imwrite(contour80, fullfile(basepath,[result_fname '80_only.tif']));
+    imwrite(contour, fullfile(basepath,[result_fname thresh_str '_only.tif']));
           
     %Joe's modification
-    [y, x] = find(contour80(:,:,2) == 1); %This seems to be correct
+    [y, x] = find(contour(:,:,2) == 1); %This seems to be correct
     coords = [x,y];
-    writematrix(coords, fullfile(basepath,[result_fname 'contour_80.csv'])); %save coordinates of the 80 percent contour
+    writematrix(coords, fullfile(basepath,[result_fname 'contour_' thresh_str '.csv'])); %save coordinates of the percent contour
     
     %code to find densty at CDC
-    ellipsefit80.X0_rnd =  round(ellipsefit80.X0_in);
-    ellipsefit80.Y0_rnd =  round(ellipsefit80.Y0_in);
-    densityatCDC = densitymap(ellipsefit80.Y0_rnd, ellipsefit80.X0_rnd);
+    ellipsefit_thresh.X0_rnd =  round(ellipsefit_thresh.X0_in);
+    ellipsefit_thresh.Y0_rnd =  round(ellipsefit_thresh.Y0_in);
+    densityatCDC = densitymap(ellipsefit_thresh.Y0_rnd, ellipsefit_thresh.X0_rnd);
     
     if (i == 1)
-        data = [peak, max_x, max_y, pxareaAboveThresh80, umareaAboveThresh80, densityatCDC, ellipsefit80.X0_rnd, ellipsefit80.Y0_rnd, scaleval];
+        data = [peak, centroid_x, centroid_y, pxareaAboveThresh, umareaAboveThresh, densityatCDC, ellipsefit_thresh.X0_rnd, ellipsefit_thresh.Y0_rnd, scaleval];
     else
-        data = [data; peak, max_x, max_y,pxareaAboveThresh80, umareaAboveThresh80, densityatCDC, ellipsefit80.X0_rnd, ellipsefit80.Y0_rnd, scaleval];
+        data = [data; peak, centroid_x, centroid_y,pxareaAboveThresh, umareaAboveThresh, densityatCDC, ellipsefit_thresh.X0_rnd, ellipsefit_thresh.Y0_rnd, scaleval];
     end
     
 % Adding an output image with the marked location of peak density, added by Joe Carroll 2/19/22
@@ -153,21 +157,21 @@ vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
 density_map_mark = densitymap-min(densitymap(:));
 density_map_mark = uint8(255*density_map_mark./max(density_map_mark(:)));
 
-MARK = insertShape(density_map_mark,'circle',[max_x max_y 2], 'LineWidth' ,3, 'Color' , 'red');
-MARK = insertShape(MARK,'circle',[ellipsefit80.X0_in ellipsefit80.Y0_in 2], 'LineWidth' ,3, 'Color' , 'blue');
+MARK = insertShape(density_map_mark,'circle',[centroid_x centroid_y 2], 'LineWidth' ,3, 'Color' , 'red');
+MARK = insertShape(MARK,'circle',[ellipsefit_thresh.X0_in ellipsefit_thresh.Y0_in 2], 'LineWidth' ,3, 'Color' , 'blue');
 imwrite(MARK, vmap, fullfile(basepath,[result_fname 'marked.tif']));
 end
 
 
 % Write summary data to file
 data = num2cell(data);
-header = {'File Name', 'Peak', 'Max_x', 'Max_y','PixelAreaAbove_0.80', 'um2AreaAbove_0.80', 'Density at CDC', 'EliCenter_0.8_x', 'EliCenter_0.8_y', 'um_per_pixel'};
+header = {'File Name', 'Peak', 'Centroid(max)_x', 'Centroid(max)_y',['PixelAreaAbove_0.' thresh_str], ['um2AreaAbove_0.' thresh_str], 'Density at CDC', 'EliCenter_0.8_x', 'EliCenter_0.8_y', 'um_per_pixel'};
 EllipseCenterCoords = cat(2,fnamelist, data);
 EllipseCenterCoords = cat(1, header, EllipseCenterCoords);
 writecell(EllipseCenterCoords, fullfile(scalingpath, ['PCD_CDC_Analysis_Summary_', datestr(now, 'dd-mmm-yyyy'), '.csv']));
 
 % Write al max value locations to file
 unpacked_maxes = vertcat(all_maxes{:});
-writecell(unpacked_maxes, fullfile(basepath, 'Results', ['all_max_coords_' date '.csv']));
+writecell(unpacked_maxes, fullfile(scalingpath, ['All_max_coords_' thresh_str '_percentile_' date '.csv']));
 
 
