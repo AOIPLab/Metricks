@@ -34,6 +34,8 @@ else
     [~, lutData] = load_scaling_file(fullfile(scalingpath,scalingfname));
 end
 
+count = 1;
+
 for i=1:size(fnamelist,1)
     
      if isnan(scaleinput)
@@ -66,6 +68,15 @@ for i=1:size(fnamelist,1)
     [maxrow,maxcol]=ind2sub(size(densitymap),maxind);       
     max_x = maxcol;
     max_y = maxrow;
+
+    % check that the max value is unique
+    max_indices = find(densitymap == maxval);           
+    [max_y_coords, max_x_coords] = find(densitymap == maxval);
+    all_max_coords = [max_x_coords, max_y_coords];
+    for j = 1:length(max_x_coords)
+        all_maxes{count,1} = {fnamelist{i}, all_max_coords(j,1), all_max_coords(j,2)};
+        count = count +1;
+    end
    
     threshold80 = (densitymap >= (0.8*peak));
     contour80 = edge(threshold80);
@@ -151,3 +162,9 @@ header = {'File Name', 'Peak', 'Max_x', 'Max_y','PixelAreaAbove_0.80', 'um2AreaA
 EllipseCenterCoords = cat(2,fnamelist, data);
 EllipseCenterCoords = cat(1, header, EllipseCenterCoords);
 writecell(EllipseCenterCoords, fullfile(scalingpath, ['PCD_CDC_Analysis_Summary_', datestr(now, 'dd-mmm-yyyy'), '.csv']));
+
+% Write al max value locations to file
+unpacked_maxes = vertcat(all_maxes{:});
+writecell(unpacked_maxes, fullfile(basepath, 'Results', ['all_max_coords_' date '.csv']));
+
+
