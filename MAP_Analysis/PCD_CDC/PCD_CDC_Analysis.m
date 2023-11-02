@@ -12,7 +12,7 @@ clc
 
 basepath = which('PCD_CDC_Analysis.m');
 [basepath] = fileparts(basepath);
-path(path,fullfile(basepath,'lib2')); % Add our support library to the path.
+path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 %[basepath] = uigetdir(pwd); %select folder
 [fnamelist] = read_folder_contents(basepath,'csv');
 [scalingfname, scalingpath] = uigetfile(fullfile(basepath,'*.csv'),'Select scaling LUT.');
