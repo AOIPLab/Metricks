@@ -334,29 +334,21 @@ for i=1:size(fnamelist,1)
 
             interped_map=zeros([height width]);
             sum_map=zeros([height width]);
+            thisval = zeros([size(coords,1) 1]);
+            [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
 
-            
             for c=1:size(coords,1)
 
-                thisval = statistics{c}.(metriclist{selectedmetric}); 
-
-                rowrange = ceil(coords(c,2)-(pixelwindowsize(c)/2):coords(c,2)+(pixelwindowsize(c)/2));
-                colrange = ceil(coords(c,1)-(pixelwindowsize(c)/2):coords(c,1)+(pixelwindowsize(c)/2));
-
-                rowrange(rowrange<1) =[];
-                colrange(colrange<1) =[];
-                rowrange(rowrange>height) =[];
-                colrange(colrange>width) =[];
-              
-                interped_map(rowrange,colrange) = interped_map(rowrange,colrange) + thisval;
-                sum_map(rowrange, colrange) = sum_map(rowrange, colrange) + 1;
+                thisval(c) = statistics{c}.(metriclist{selectedmetric}); 
 
             end
-                %
-
-            interped_map = interped_map./sum_map;
-
-            interped_map(isnan(interped_map)) =0;
+             
+            scattah = scatteredInterpolant(coords(:,1), coords(:,2), thisval);
+            interped_map = scattah(Xq,Yq);
+			smoothed_interped_map = imgaussfilt(interped_map,20);
+			
+			interped_map(isnan(interped_map)) =0;
+			smoothed_interped_map(isnan(smoothed_interped_map)) =0;
             
             vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
             
