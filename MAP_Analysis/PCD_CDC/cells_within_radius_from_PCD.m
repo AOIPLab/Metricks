@@ -1,9 +1,9 @@
 % Finds the nujmber of cells within a circle with a user given radius from
 % the PCD in a density matrix. User enters the radius in um (microns) from 
-% the PCD. 
+% the PCD. Currently not able to handle both eyes from the same subject.
 
 % Inputs: Denisty matrices, cone coordinate files, a LUT file
-% (subject ID, axial length, and ppd), user input for radius in um
+% (subject ID, axial length, and ppd) all in the same data folder.
 
 % Outputs: .csv saved to the data folder.
 
