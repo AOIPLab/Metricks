@@ -99,13 +99,23 @@ for i = 1:size(batch_info, 1)
     %% Find cells in radius
 
     % creating a circle mask of 0s on the density map 
-    [x_mesh,y_mesh] = meshgrid(1:799);
+    [x_mesh,y_mesh] = meshgrid(1:size(densitymap,1));
     circle_mask = densitymap;
     circle_mask((x_mesh - centroid_x).^2 + (y_mesh - centroid_y).^2 < radius_px^2) = 0;
+    circle_mask2 = (circle_mask>0);
 
-    contour = edge(circle_mask); % binary contour from thresholded density map
+    contour = edge(circle_mask2); % binary contour from thresholded density map
     [new_indeces] = find_close_indeces(contour); % using function from matlab file exchange
     in = inpolygon(x,y,new_indeces(:,2),new_indeces(:,1)); % finds which cell coordinates are inside/on the contour
+    
+    % 
+    % % plot for sanity check
+    % plot(x,y, '.');
+    % hold on
+    % plot(x(in),y(in),'r+') % points inside
+    % set(gca,'XAxisLocation','bottom','YAxisLocation','left','ydir','reverse');
+    % hold off
+    
     cellsInContour = numel(x(in)); % gets the number of cells in and on the contour
 
     %% storing data
