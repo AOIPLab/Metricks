@@ -64,7 +64,7 @@ for i=1:size(fnamelist,1)
                 axiallength = lutData{2}(LUTindex);
                 pixelsperdegree = lutData{3}(LUTindex);
 
-                micronsperdegree = (291*axiallength)/24;
+                micronsperdegree = (291*axiallength)/24; % these numbers are from a book in Joe's office, Joe has confirmed it is correct
                 
                 scaleval = 1 / (pixelsperdegree / micronsperdegree);
             else
