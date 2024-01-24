@@ -281,6 +281,7 @@ for i=1:size(fnamelist,1)
             disp('Determined window size.')
             
             %% Actually calculate the statistics
+            comp_table = [];
             for c=1:size(coords,1)
                 
                 rowborders = ceil([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
@@ -314,7 +315,15 @@ for i=1:size(fnamelist,1)
                 warning off;
                 [ success ] = mkdir(basepath,'Results');
                 warning on;
-            
+
+                % store bound and unbound area and cells for the subject
+                output(:,1) = statistics{c,1}.Total_Area;
+                output(:,2) = statistics{c,1}.Total_Bound_Area;
+                output(:,3) = statistics{c,1}.Number_Unbound_Cells;
+                output(:,4) = statistics{c,1}.Number_Bound_Cells;
+    
+                comp_table = [comp_table;output];
+
             end
            
             
@@ -392,6 +401,16 @@ for i=1:size(fnamelist,1)
             %save matrix of density values, added by Jenna Cava
             filename = fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_' date '.csv']);
             writematrix(interped_map, filename);
+
+            %save matrix as matfile
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_MATFILE_' date '.mat']), "interped_map");
+    
+            %save window results for each subject
+            header = {'Total Area', 'Total Bound Area', 'Number Unbound Cells', 'Number Bound Cells'};
+            finaloutput = [header;num2cell(comp_table)];
+            newname = ['\', subjectID{LUTindex}, '_window_results_', date, '.csv'];
+            writecell(finaloutput,fullfile(basepath, 'Results', newname));
+      
              
             %%
         end
