@@ -316,14 +316,6 @@ for i=1:size(fnamelist,1)
                 [ success ] = mkdir(basepath,'Results');
                 warning on;
 
-                % store bound and unbound area and cells for the subject
-                output(:,1) = statistics{c,1}.Total_Area;
-                output(:,2) = statistics{c,1}.Total_Bound_Area;
-                output(:,3) = statistics{c,1}.Number_Unbound_Cells;
-                output(:,4) = statistics{c,1}.Number_Bound_Cells;
-    
-                comp_table = [comp_table;output];
-
             end
            
             
@@ -337,7 +329,7 @@ for i=1:size(fnamelist,1)
 %                  error('Cancelled by user.');
 %             end
 
-             %Hard code selection for bound density - added by JC 2/19/22
+            %Hard code selection for bound density - added by JC 2/19/22
             metriclist = fieldnames(statistics{1});
             selectedmetric = 5; %5 = bound density, 7 = bound ICD      
 
@@ -346,9 +338,19 @@ for i=1:size(fnamelist,1)
             thisval = zeros([size(coords,1) 1]);
             [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
 
+            % initialize additional items to be saved
+            bound_area = zeros([size(coords,1) 1]);
+            unbound_area = zeros([size(coords,1) 1]);
+            bound_num_cells = zeros([size(coords,1) 1]);
+            unbound_num_cells = zeros([size(coords,1) 1]);
+
             for c=1:size(coords,1)
 
-                thisval(c) = statistics{c}.(metriclist{selectedmetric}); 
+                thisval(c) = statistics{c}.(metriclist{selectedmetric});
+                bound_area(c) = statistics{c}.('Total_Bound_Area');
+                unbound_area(c) = statistics{c}.('Total_Area');
+                bound_num_cells(c) = statistics{c}.('Number_Bound_Cells');
+                unbound_num_cells(c) = statistics{c}.('Number_Unbound_Cells');
 
             end
              
@@ -405,11 +407,14 @@ for i=1:size(fnamelist,1)
             %save matrix as matfile
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_MATFILE_' date '.mat']), "interped_map");
     
-            %save window results for each subject
-            header = {'Total Area', 'Total Bound Area', 'Number Unbound Cells', 'Number Bound Cells'};
-            finaloutput = [header;num2cell(comp_table)];
-            newname = ['\', subjectID{LUTindex}, '_window_results_', date, '.csv'];
-            writecell(finaloutput,fullfile(basepath, 'Results', newname));
+            %save additional window results for each subject
+            win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells);
+            save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
+            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_area_', date, '.mat']), "bound_area");
+            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_UNbound_area_', date, '.mat']), "unbound_area");
+            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_num_cells_', date, '.mat']), "bound_num_cells");
+            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_UNbound_num_cells_', date, '.mat']), "unbound_num_cells");
+
       
              
             %%
