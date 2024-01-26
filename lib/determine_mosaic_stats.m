@@ -1,4 +1,4 @@
-function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, unit, bounds ,clipped_row_col,reliability )
+function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, scaledeg, unit, bounds ,clipped_row_col,reliability )
 % Robert Cooper 09-24-14
 % This function takes in a list of coordinates in a m-2 matrix, and
 % calculates the mean nearest neighbor, cell area created by the
@@ -80,6 +80,7 @@ end
 % voronoi(coords(:,1),coords(:,2));
 if ~isempty(coords_bound)
     coords_bound=coords_bound(coords_bound(:,1)~=0,:); % Clip out the unbounded cells
+    cellarea_deg = cellarea((cellarea~=0)).*(scaledeg.^2);
     cellarea= cellarea((cellarea~=0)).*(scale.^2); % Clip out unbounded cells, convert to square microns
     numedges = numedges(numedges~=0);
     
@@ -104,9 +105,10 @@ end
 
 numcells=length(coords); % Total number of cells
 total_cell_area=sum(cellarea); % Total cell area in units
+total_cell_area_deg = sum(cellarea_deg);
 
 if strcmp(unit,'microns (mm density)')
-    total_coord_area=((clipped_row_col(1)*clipped_row_col(2))*((scale^2)/(1000^2)));    
+    total_coord_area=((clipped_row_col(1)*clipped_row_col(2))*((scale^2)/(1000^2))); 
 else
     total_coord_area=((clipped_row_col(1)*clipped_row_col(2))*((scale^2)));    
 end
@@ -117,8 +119,10 @@ density_dc=numcells/total_coord_area; % cells/mm^2
 if ~isempty(coords_bound)
     if strcmp(unit,'microns (mm density)')
         density_bound = (1000^2)*size(coords_bound,1)./total_cell_area;
+        density_bound_deg = size(coords_bound,1)./total_cell_area_deg;
     else
         density_bound = size(coords_bound,1)./total_cell_area;
+        density_bound_deg = size(coords_bound,1)./total_cell_area;
     end
 else
     density_bound = 0;
@@ -213,7 +217,7 @@ mosaic_stats = struct('Number_Unbound_Cells', numcells,'Number_Bound_Cells', len
                       'Bound_Density',density_bound, 'Bound_NN_Distance',mean_correct_nn_dist,'Bound_IC_Distance',mean_correct_inter_cell_dist,'Bound_Furthest_Distance',mean_correct_max_cell_dist,...
                       'Bound_Mean_Voronoi_Area', mean_cellarea,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', drp_spac,...
                       'Bound_Voronoi_Area_RI',regularity_voro_index,'Bound_Voronoi_Sides_RI',regularity_voro_sides, 'Bound_NN_RI', regularity_nn_index, 'Bound_IC_RI', regularity_ic_index,...
-                      'Unbound_Density', density_dc ,'Unbound_NN_Distance', mean_nn_dist, 'Unbound_IC_Distance',mean_inter_cell_dist, 'Unbound_Furthest_Distance',mean_max_cell_dist);
+                      'Unbound_Density', density_dc ,'Unbound_NN_Distance', mean_nn_dist, 'Unbound_IC_Distance',mean_inter_cell_dist, 'Unbound_Furthest_Distance',mean_max_cell_dist, 'Bound_Density_DEG',density_bound_deg);
 
 end
 

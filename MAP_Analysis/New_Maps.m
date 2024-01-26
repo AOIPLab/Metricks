@@ -2,11 +2,8 @@
 % 1/24/24
 % Jenna Grieshop
 
-root_path = uigetdir('.','Select directory containing analyses');
-root_dir = dir(root_path);
-root_dir = struct2cell(root_dir)';
 
-liststr = {'bound_area','unbound_area','bound_num_cells', 'unbound_num_cells'};
+liststr = {'bound_area','unbound_area','bound_num_cells', 'unbound_num_cells', 'bound_density_deg', 'bound_density'};
 [selectedmap, oked] = listdlg('PromptString','Select map type:',...
                               'SelectionMode','single',...
                               'ListString',liststr);
@@ -14,7 +11,11 @@ if oked == 0
     error('Cancelled by user.');
 end
 
-selectedmap = liststr{selectedmap};    
+root_path = uigetdir('.','Select directory containing analyses');
+root_dir = dir(root_path);
+root_dir = struct2cell(root_dir)';
+
+selectedmap = liststr{selectedmap};   
 
 [fnamelist, isadir ] = read_folder_contents(root_path,'csv');
 [fnamelisttxt, isdirtxt ] = read_folder_contents(root_path,'txt');
@@ -65,7 +66,12 @@ for i=1:size(fnamelist,1)
     interped_map=zeros([height width]);
     [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
     
-    if selectedmap == "bound_area"
+    
+    if selectedmap == "bound_density_deg"
+        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_density_DEG);  
+    elseif selectedmap == "bound_density"
+        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_density); 
+    elseif selectedmap == "bound_area"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_area);       
     elseif selectedmap == "unbound_area"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.unbound_area);
@@ -114,6 +120,12 @@ for i=1:size(fnamelist,1)
     scaled_map(scaled_map  >255) = 255; %in case there are values above this
     imwrite(scaled_map, vmap, fullfile(root_path,[subject_ID, '_', result_fname '_raw.tif'])); %added by Joe Carroll 
 
+    if selectedmap == "bound_density_deg"
+        filename = fullfile(root_path,'Results',[subject_ID '_bounddensity_matrix_DEG_' date '.csv']);
+        writematrix(interped_map, filename);
+        %save matrix as matfile
+        save(fullfile(root_path,'Results',[subject_ID '_bounddensity_matrix_DEG_MATFILE_' date '.mat']), "interped_map");
+    end
 
 end
 

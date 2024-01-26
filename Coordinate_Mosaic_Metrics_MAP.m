@@ -181,10 +181,13 @@ for i=1:size(fnamelist,1)
                 switch selectedunit
                     case 'microns (mm density)'
                         scaleval = 1 / (pixelsperdegree / micronsperdegree);
+                        scaleval_deg = 1/pixelsperdegree;
                     case 'degrees'
                         scaleval = 1/pixelsperdegree;
+                        scaleval_deg = 1/pixelsperdegree;
                     case 'arcmin'
                         scaleval = 60/pixelsperdegree;
+                        scaleval_deg = 1/pixelsperdegree;
                 end
             else
                 scaleval = scaleinput;
@@ -301,7 +304,7 @@ for i=1:size(fnamelist,1)
                 % [xmin xmax ymin ymax] 
                 clip_start_end = [colborders rowborders];
                 
-                statistics{c} = determine_mosaic_stats( clipped_coords, scaleval, selectedunit, clip_start_end ,[colborders(2)-colborders(1) rowborders(2)-rowborders(1)], 4 );
+                statistics{c} = determine_mosaic_stats( clipped_coords, scaleval, scaleval_deg, selectedunit, clip_start_end ,[colborders(2)-colborders(1) rowborders(2)-rowborders(1)], 4 );
                 statistics{c}.Window_Size = pixelwindowsize(c)*scaleval;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % Determine FFT Power Spectra %%
@@ -343,6 +346,7 @@ for i=1:size(fnamelist,1)
             unbound_area = zeros([size(coords,1) 1]);
             bound_num_cells = zeros([size(coords,1) 1]);
             unbound_num_cells = zeros([size(coords,1) 1]);
+            density_bound_deg = zeros([size(coords,1) 1]);
 
             for c=1:size(coords,1)
 
@@ -351,6 +355,7 @@ for i=1:size(fnamelist,1)
                 unbound_area(c) = statistics{c}.('Total_Area');
                 bound_num_cells(c) = statistics{c}.('Number_Bound_Cells');
                 unbound_num_cells(c) = statistics{c}.('Number_Unbound_Cells');
+                density_bound_deg(c) = statistics{c}.('Bound_Density_DEG');
 
             end
              
@@ -408,7 +413,7 @@ for i=1:size(fnamelist,1)
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_MATFILE_' date '.mat']), "interped_map");
     
             %save additional window results for each subject
-            win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells);
+            win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', thisval);
             save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
             % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_area_', date, '.mat']), "bound_area");
             % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_UNbound_area_', date, '.mat']), "unbound_area");
