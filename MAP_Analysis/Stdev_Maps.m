@@ -35,7 +35,7 @@ for j=1:size(SubID,2)
             ~cellfun(@isempty, strfind(temp_dir(:,1), 'MATFILE')),:);
         index = strfind(MATFILE_dir(:,1), SubID(j));
         data = load(fullfile(MATFILE_dir{index{1,1},2}, MATFILE_dir{index{1,1},1}));
-        maps{j,k} = data.interped_map;
+        maps{j,k} = round(data.interped_map,2);
         A(:,:,k) = maps{j,k};
     end
     standard_dev = std(A, [], 3);
