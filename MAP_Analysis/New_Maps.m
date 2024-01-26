@@ -2,6 +2,9 @@
 % 1/24/24
 % Jenna Grieshop
 
+clear all
+clc
+
 
 liststr = {'bound_area','unbound_area','bound_num_cells', 'unbound_num_cells', 'bound_density_deg', 'bound_density'};
 [selectedmap, oked] = listdlg('PromptString','Select map type:',...
