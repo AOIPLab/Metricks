@@ -93,6 +93,8 @@ clear;
 close all force;
 
 WINDOW_SIZE = [];
+upper_bound = 150; %this is the number of BOUND cells to include
+TRIM = true; % Set to true if you want to trim the outer cells until the number of cells is exactly the upper bound.
 
 %% Crop the coordinates/image to this size in [scale], and calculate the area from it.
 % If left empty, it uses the size of the image.
@@ -229,7 +231,7 @@ for i=1:size(fnamelist,1)
                 
             else
                 
-                upper_bound = 150; %this is the number of BOUND cells to include
+                
                 
                 if upper_bound > size(coords,1)
                     upper_bound = size(coords,1);
@@ -237,13 +239,15 @@ for i=1:size(fnamelist,1)
                 
                 % Determine the window size dynamically for each coordinate
                 pixelwindowsize = zeros(size(coords,1),1);
+                numbound = zeros(size(coords,1),1);
+                trimlist = cell(size(coords,1), 1);
 
                 parfor c=1:size(coords,1)               
 
                     thiswindowsize=1;
                     clipped_coords=[];
-                    numbound=0;
-                    while numbound < upper_bound
+                    
+                    while numbound(c) < upper_bound
                         thiswindowsize = thiswindowsize+1;
                         rowborders = ([coords(c,2)-(thiswindowsize/2) coords(c,2)+(thiswindowsize/2)]);
                         colborders = ([coords(c,1)-(thiswindowsize/2) coords(c,1)+(thiswindowsize/2)]);
@@ -273,12 +277,17 @@ for i=1:size(fnamelist,1)
                                  end
                              end
  
-                             numbound = sum(bound);
+                             numbound(c) = sum(bound);
                          end
 
                      end
 %                     axis([colborders rowborders])
                     pixelwindowsize(c) = thiswindowsize;
+
+                    if TRIM
+
+                        
+                    end
                 end
             end
             disp('Determined window size.')
@@ -287,8 +296,8 @@ for i=1:size(fnamelist,1)
             comp_table = [];
             for c=1:size(coords,1)
                 
-                rowborders = ceil([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
-                colborders = ceil([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
+                rowborders = ([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
+                colborders = ([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
 
                 rowborders(rowborders<1) =1;
                 colborders(colborders<1) =1;
