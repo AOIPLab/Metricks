@@ -1,10 +1,13 @@
-function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, scaledeg, unit, bounds ,clipped_row_col,reliability )
+function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, scaledeg, unit, bounds , ignore_idx, reliability )
 % Robert Cooper 09-24-14
 % This function takes in a list of coordinates in a m-2 matrix, and
 % calculates the mean nearest neighbor, cell area created by the
 % coordinates, and calculates the density of the coordinates
 
 %% Coords are in X,Y!
+
+
+clipped_row_col = [colborders(2)-colborders(1) rowborders(2)-rowborders(1)];
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %% Determine Mean N-N %%
@@ -41,7 +44,7 @@ if size(coords,1) > 2
         vertices=V(C{i},:);
 
         if (all(C{i}~=1)  && all(vertices(:,1)<bounds(2)) && all(vertices(:,2)<bounds(4)) ... % [xmin xmax ymin ymax] 
-                         && all(vertices(:,1)>bounds(1)) && all(vertices(:,2)>bounds(3))) 
+                         && all(vertices(:,1)>bounds(1)) && all(vertices(:,2)>bounds(3))) && all(vc ~= ignore_idx)
 
             cellarea(i) = polyarea(V(C{i},1),V(C{i},2));
 
@@ -62,9 +65,9 @@ if size(coords,1) > 2
     %             case 9
     %                 color = 'b';
             end
-    %         figure(10);
-    %         patch(V(C{i},1),V(C{i},2),ones(size(V(C{i},1))),'FaceColor',color);
-    %         hold on;
+            % figure(10);
+            % patch(V(C{i},1),V(C{i},2),ones(size(V(C{i},1))),'FaceColor',color);
+            % hold on;
 
             coords_bound(i,:) = coords(i,:);
             bound(i) = 1;
