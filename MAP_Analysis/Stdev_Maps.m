@@ -4,6 +4,9 @@
 
 clear all
 clc
+addpath('lib');
+
+sub_id = {''};
 
 
 root_path = uigetdir('.','Select directory containing analyses');
@@ -11,40 +14,39 @@ root_dir = dir(root_path);
 root_dir = root_dir(~ismember({root_dir.name}, {'.', '..'}));
 root_dir = struct2cell(root_dir)';
 
+% get all the file paths that we are interested in in each of the folders
+[file_paths] = read_folder_contents_rec(root_path, 'mat', 'MATFILE');
 
-temp_dir = dir(fullfile(root_dir{1,2}, root_dir{1,1}));
-temp_dir = struct2cell(temp_dir)';
-% looks for all the MATFILE matrices
-MATFILE_dir = temp_dir(...
-    ~cellfun(@isempty, strfind(temp_dir(:,1), 'MATFILE')),:);
 
 % finding all the subject Ids within the folders
-for i=1:size(MATFILE_dir,1)
-    spl = split(MATFILE_dir{i,1}, "_");
-    spl = spl(1);
-    SubID(i) = spl;
+for i=1:size(file_paths,1)
+    spl = split(file_paths{i,1}, "_");
+    spl = split(spl{1,1}, "\");
+    spl = spl(end);
+    if contains(sub_id{:}, spl)
+        continue
+    else
+        sub_id{i} = spl{1};
+    end
+    
 end
 
-N = size(root_dir,1);
-for j=1:size(SubID,2)
-    for k=1:size(root_dir,1)
-        fol_dir = dir(fullfile(root_dir{k,2}, root_dir{k,1}));
-        fol_dir = struct2cell(fol_dir)';
-        % looks for all the MATFILE matrices
-        MATFILE_dir = temp_dir(...
-            ~cellfun(@isempty, strfind(temp_dir(:,1), 'MATFILE')),:);
-        index = strfind(MATFILE_dir(:,1), SubID(j));
-        data = load(fullfile(MATFILE_dir{index{1,1},2}, MATFILE_dir{index{1,1},1}));
-        maps{j,k} = round(data.interped_map,2);
-        A(:,:,k) = maps{j,k};
+for j=1:size(sub_id,2)
+
+    index = find(contains(file_paths,sub_id(j)));
+    for m=1:size(index,1)
+        data = load(file_paths{m});
+        maps{m} = round(data.interped_map,2);
+        A(:,:,m) = maps{m};
     end
+
     standard_dev = std(A, [], 3);
-    vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
+    vmap=viridis; %calls viridis colormap function
     
-    clims = [0 7810^-11]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
+    clims = [0 25000]; % added to set limits of color scale, so all images use the same scale
     
     dispfig=figure(1); 
-    imagesc(standard_dev); % added to use limits of color scale, by Joe 2/19/22
+    imagesc(standard_dev); % added to use limits of color scale
     axis image;
     colormap(vmap); 
     colorbar; 
@@ -65,8 +67,8 @@ for j=1:size(SubID,2)
     scaled_map(scaled_map  >255) = 255; %in case there are values above this
 
 
-    subjectID = SubID(j); 
-    subjectID = subjectID{1,1};
+    subjectID = sub_id(j); 
+    subjectID = subjectID{1};
     result_fname = [subjectID '_stdev_' date '_raw.tif'];
     imwrite(scaled_map, vmap, fullfile(root_path,result_fname));
 
