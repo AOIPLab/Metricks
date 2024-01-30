@@ -7,7 +7,7 @@ function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, scaledeg, uni
 %% Coords are in X,Y!
 
 
-clipped_row_col = [colborders(2)-colborders(1) rowborders(2)-rowborders(1)];
+clipped_row_col = [bounds(2)-bounds(1) bounds(4)-bounds(3)];
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %% Determine Mean N-N %%
@@ -39,12 +39,12 @@ if size(coords,1) > 2
     [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
 
     % figure(10); hold on;
-    for i=1:length(C)
+    parfor i=1:length(C)
 
         vertices=V(C{i},:);
 
         if (all(C{i}~=1)  && all(vertices(:,1)<bounds(2)) && all(vertices(:,2)<bounds(4)) ... % [xmin xmax ymin ymax] 
-                         && all(vertices(:,1)>bounds(1)) && all(vertices(:,2)>bounds(3))) && all(vc ~= ignore_idx)
+                         && all(vertices(:,1)>bounds(1)) && all(vertices(:,2)>bounds(3))) && all(i ~= ignore_idx)
 
             cellarea(i) = polyarea(V(C{i},1),V(C{i},2));
 

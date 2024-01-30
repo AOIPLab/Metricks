@@ -335,16 +335,16 @@ for i=1:size(fnamelist,1)
                         toremove = randperm(length(ignoreindx), numbound(c)-upper_bound); 
                         ignoreindx = ignoreindx(toremove);
 
-                        disp(['Need to remove ' num2str(numbound(c)-upper_bound) ' cells to match ' num2str(upper_bound) '.'])
-                       
-                        rowborders = ([coords(c,2)-(pixelwindowsize(c) /2) coords(c,2)+(pixelwindowsize(c) /2)]);
-                        colborders = ([coords(c,1)-(pixelwindowsize(c) /2) coords(c,1)+(pixelwindowsize(c) /2)]);
-
-                        rowborders(rowborders<1) =1;
-                        colborders(colborders<1) =1;
-                        rowborders(rowborders>maxrowval) =maxrowval;
-                        colborders(colborders>maxcolval) =maxcolval;
-                        bound = zeros(length(C),1);
+                        % disp(['Need to remove ' num2str(numbound(c)-upper_bound) ' cells to match ' num2str(upper_bound) '.'])
+                        % 
+                        % rowborders = ([coords(c,2)-(pixelwindowsize(c) /2) coords(c,2)+(pixelwindowsize(c) /2)]);
+                        % colborders = ([coords(c,1)-(pixelwindowsize(c) /2) coords(c,1)+(pixelwindowsize(c) /2)]);
+                        % 
+                        % rowborders(rowborders<1) =1;
+                        % colborders(colborders<1) =1;
+                        % rowborders(rowborders>maxrowval) =maxrowval;
+                        % colborders(colborders>maxcolval) =maxcolval;
+                        % bound = zeros(length(C),1);
                         % figure(3);clf;
                         %  axis([colborders rowborders])
                         %  hold on;
