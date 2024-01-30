@@ -384,16 +384,14 @@ for i=1:size(fnamelist,1)
                 rowborders(rowborders>maxrowval) =maxrowval;
                 colborders(colborders>maxcolval) =maxcolval;
                 
-                % clipped_coords =coordclip(coords,colborders,...
-                %                                  rowborders,'i');
-                                             
+                    
                 %ccc=length(clipped_coords);
                 % disp(ccc) if you want the number of clipped coordinates
                 % displayed
                 % [xmin xmax ymin ymax] 
                 clip_start_end = [colborders rowborders];
                 
-                statistics{c} = determine_mosaic_stats( clipped_coords, scaleval, scaleval_deg, selectedunit, clip_start_end , ...
+                statistics{c} = determine_mosaic_stats( coords, scaleval, scaleval_deg, selectedunit, clip_start_end , ...
                                                         trimlist{c}, 4 );
                 statistics{c}.Window_Size = pixelwindowsize(c)*scaleval;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
