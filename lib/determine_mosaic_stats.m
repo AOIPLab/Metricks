@@ -205,7 +205,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-[ density_per_rad, um_drp_sizes, drp_spac]=calculate_DRP(coords, [bounds(1:2); bounds(3:4)], scale, pixel_density, reliability );
+% [ density_per_rad, um_drp_sizes, drp_spac]=calculate_DRP(coords, [bounds(1:2); bounds(3:4)], scale, pixel_density, reliability );
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -218,7 +218,7 @@ end
 
 mosaic_stats = struct('Number_Unbound_Cells', numcells,'Number_Bound_Cells', sum(bound), 'Total_Area', total_coord_area, 'Total_Bound_Area',total_cell_area,...                      
                       'Bound_Density',density_bound, 'Bound_NN_Distance',mean_correct_nn_dist,'Bound_IC_Distance',mean_correct_inter_cell_dist,'Bound_Furthest_Distance',mean_correct_max_cell_dist,...
-                      'Bound_Mean_Voronoi_Area', mean_cellarea,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', drp_spac,...
+                      'Bound_Mean_Voronoi_Area', mean_cellarea,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', 0,...
                       'Bound_Voronoi_Area_RI',regularity_voro_index,'Bound_Voronoi_Sides_RI',regularity_voro_sides, 'Bound_NN_RI', regularity_nn_index, 'Bound_IC_RI', regularity_ic_index,...
                       'Unbound_Density', density_dc ,'Unbound_NN_Distance', mean_nn_dist, 'Unbound_IC_Distance',mean_inter_cell_dist, 'Unbound_Furthest_Distance',mean_max_cell_dist, 'Bound_Density_DEG',density_bound_deg);
 

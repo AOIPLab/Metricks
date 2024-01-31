@@ -10,9 +10,6 @@ sub_id = {''};
 
 
 root_path = uigetdir('.','Select directory containing analyses');
-root_dir = dir(root_path);
-root_dir = root_dir(~ismember({root_dir.name}, {'.', '..'}));
-root_dir = struct2cell(root_dir)';
 
 % get all the file paths that we are interested in in each of the folders
 [file_paths] = read_folder_contents_rec(root_path, 'mat', 'MATFILE');
@@ -37,7 +34,7 @@ for j=1:size(sub_id,2)
     for m=1:size(index,1)
         data = load(file_paths{m});
         maps{m} = round(data.interped_map,2);
-        A(:,:,m) = maps{m};
+        A(:,:,m) = maps{m}; % maps is an unnecesary middle step - but good for trouble shooting
     end
 
     standard_dev = std(A, [], 3);

@@ -39,7 +39,7 @@ for i=1:size(win_results_dir,1)
         disp("something is wrong");
      end
 
-    output(:,1) = {subject_id};;
+    output(:,1) = {subject_id};
     output(:,2) = {max(selected_data)};
     output(:,3) = {min(selected_data)};
     output(:,4) = {mean(selected_data)};
