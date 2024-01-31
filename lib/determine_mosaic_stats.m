@@ -9,11 +9,13 @@ function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, scaledeg, uni
 
 clipped_row_col = [bounds(2)-bounds(1) bounds(4)-bounds(3)];
 
+clipped_coords = coordclip(coords,bounds(1:2),bounds(3:4),'i');
+
 %%%%%%%%%%%%%%%%%%%%%%%%
 %% Determine Mean N-N %%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-dist_between_pts=pdist2(coords,coords); % Measure the distance from each set of points to the other
+dist_between_pts=pdist2(clipped_coords,clipped_coords); % Measure the distance from each set of points to the other
 max_ident=eye(length(dist_between_pts)).*max(dist_between_pts(:)); % Make diagonal not the minimum for any observation
 
 [minval minind]=min(dist_between_pts+max_ident); % Find the minimum distance from one set of obs to another
@@ -106,7 +108,7 @@ end
 %% Determine Number of Cells, Density Direct Count (D_dc) %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-numcells=length(coords); % Total number of cells
+numcells=length(clipped_coords); % Total number of cells
 total_cell_area=sum(cellarea); % Total cell area in units
 total_cell_area_deg = sum(cellarea_deg);
 

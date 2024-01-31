@@ -230,9 +230,7 @@ for i=1:size(fnamelist,1)
                 pixelwindowsize = repmat(WINDOW_SIZE/scaleval,size(coords,1),1);
                 
             else
-                
-                
-                
+                                                
                 if upper_bound > size(coords,1)
                     upper_bound = size(coords,1);
                 end
@@ -242,13 +240,15 @@ for i=1:size(fnamelist,1)
                 numbound = zeros(size(coords,1),1);
                 trimlist = cell(size(coords,1), 1);
 
-                parfor c=1:size(coords,1)               
+                tic;
+                [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
 
+                for c=1:size(coords,1)                                   
                     thiswindowsize=1;
-                    [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
-                    
+                                        
+                    % Stupid simple optimzation- first make big jumps                    
                     while numbound(c) < upper_bound
-                        thiswindowsize = thiswindowsize+1;
+                        thiswindowsize = thiswindowsize+10;
                         rowborders = ([coords(c,2)-(thiswindowsize/2) coords(c,2)+(thiswindowsize/2)]);
                         colborders = ([coords(c,1)-(thiswindowsize/2) coords(c,1)+(thiswindowsize/2)]);
 
@@ -262,39 +262,82 @@ for i=1:size(fnamelist,1)
                              % Next, create voronoi diagrams from the cells we've clipped.                             
                              
                             bound = zeros(length(C),1);
+
+                            fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
                             for vc=1:length(C)
  
-                                vertices=V(C{vc},:);
+                                vertices=fastbound(C{vc});
  
-                                if (all(C{vc}~=1)  && all(vertices(:,1)<colborders(2)) && all(vertices(:,2)<rowborders(2)) ... % [xmin xmax ymin ymax] 
-                                                  && all(vertices(:,1)>colborders(1)) && all(vertices(:,2)>rowborders(1))) 
-                                    bound(vc) = 1;
+                                if all(vertices) && all(C{vc}~=1)
+                                    bound(vc) = bound(vc)+1;
+                                end
+                            end
+
+                            numbound(c) = sum(bound);
+                        end
+                    end
+
+                    % Then walk it back until we're below the bound
+                    while numbound(c) > upper_bound
+                        thiswindowsize = thiswindowsize-1;
+                        rowborders = ([coords(c,2)-(thiswindowsize/2) coords(c,2)+(thiswindowsize/2)]);
+                        colborders = ([coords(c,1)-(thiswindowsize/2) coords(c,1)+(thiswindowsize/2)]);
+
+                        rowborders(rowborders<1) =1;
+                        colborders(colborders<1) =1;
+                        rowborders(rowborders>maxrowval) =maxrowval;
+                        colborders(colborders>maxcolval) =maxcolval;
+                        
+                        % Ensure we're working with bound cells only.
+                        if size(coords,1) > 5                        
+                             
+                            bound = zeros(length(C),1);
+
+                            fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
+                            for vc=1:length(C)
+ 
+                                vertices=fastbound(C{vc});
+ 
+                                if all(vertices) && all(C{vc}~=1)
+                                    bound(vc) = bound(vc)+1;
                                 end
                             end
  
                             numbound(c) = sum(bound);
                         end
-                     end
+                    end    
                     
-                    pixelwindowsize(c) = thiswindowsize;
-                    
+                                     
 
                     if TRIM && numbound(c) ~= upper_bound
 
+                        pixelwindowsize(c) = thiswindowsize+1;
                         % figure(1); clf;
                         % axis([colborders rowborders])
                         % hold on;
-                        for vc=1:length(C)
- 
-                            vertices=V(C{vc},:);
+                        rowborders = ([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]);
+                        colborders = ([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
 
-                            if (all(C{vc}~=1)  && all(vertices(:,1)<colborders(2)) && all(vertices(:,2)<rowborders(2)) ... % [xmin xmax ymin ymax] 
-                                              && all(vertices(:,1)>colborders(1)) && all(vertices(:,2)>rowborders(1))) 
-                             %    patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','green');                                
-                             % else
-                             %     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','blue');
-                             end
+                        rowborders(rowborders<1) =1;
+                        colborders(colborders<1) =1;
+                        rowborders(rowborders>maxrowval) =maxrowval;
+                        colborders(colborders>maxcolval) =maxcolval;
+
+                        bound = zeros(length(C),1);
+                        fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
+                        for vc=1:length(C)
+
+                            vertices=fastbound(C{vc});
+
+                            if all(vertices) && all(C{vc}~=1)
+                                bound(vc) = bound(vc)+1;
+%                                 patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','green');                                
+%                              else
+%                                  patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','blue');
+                            end
                         end
+
+                        numbound(c) = sum(bound);
                         % title('OG')
 
                         stepback= pixelwindowsize(c)-1;
@@ -311,14 +354,13 @@ for i=1:size(fnamelist,1)
                          % axis([colborders rowborders])
                          % hold on;
                          
-                         for vc=1:length(C)
+                        fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
+                        for vc=1:length(C)
 
-                             vertices=V(C{vc},:);
+                            vertices=fastbound(C{vc});
 
-                             if (all(C{vc}~=1)  && all(vertices(:,1)<colborders(2)) && all(vertices(:,2)<rowborders(2)) ... % [xmin xmax ymin ymax] 
-                                              && all(vertices(:,1)>colborders(1)) && all(vertices(:,2)>rowborders(1))) 
-                                
-                                 bound(vc) = bound(vc)+1;
+                            if all(vertices) && all(C{vc}~=1)
+                                bound(vc) = bound(vc)+1;
                              %     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','green');
                              % 
                              % elseif bound(vc) == 1
@@ -335,7 +377,7 @@ for i=1:size(fnamelist,1)
                         toremove = randperm(length(ignoreindx), numbound(c)-upper_bound); 
                         ignoreindx = ignoreindx(toremove);
 
-                        % disp(['Need to remove ' num2str(numbound(c)-upper_bound) ' cells to match ' num2str(upper_bound) '.'])
+%                         disp(['Need to remove ' num2str(numbound(c)-upper_bound) ' cells to match ' num2str(upper_bound) '.'])
                         % 
                         % rowborders = ([coords(c,2)-(pixelwindowsize(c) /2) coords(c,2)+(pixelwindowsize(c) /2)]);
                         % colborders = ([coords(c,1)-(pixelwindowsize(c) /2) coords(c,1)+(pixelwindowsize(c) /2)]);
@@ -370,6 +412,7 @@ for i=1:size(fnamelist,1)
                     end
                 end
             end
+            toc;
             disp('Determined window size.')
             
             %% Actually calculate the statistics
