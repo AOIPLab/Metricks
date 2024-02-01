@@ -240,13 +240,15 @@ for i=1:size(fnamelist,1)
                 numbound = zeros(size(coords,1),1);
                 trimlist = cell(size(coords,1), 1);
 
-                tic;
+                
                 [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
-
-                for c=1:size(coords,1)                                   
-                    thiswindowsize=1;
+                tic;
+                parfor c=1:size(coords,1)                                   
+                    
                                         
-                    % Stupid simple optimzation- first make big jumps                    
+                    % Stupid simple optimzation- first make big jumps 
+                    
+                    thiswindowsize=1;
                     while numbound(c) < upper_bound
                         thiswindowsize = thiswindowsize+10;
                         rowborders = ([coords(c,2)-(thiswindowsize/2) coords(c,2)+(thiswindowsize/2)]);
@@ -264,18 +266,15 @@ for i=1:size(fnamelist,1)
                             bound = zeros(length(C),1);
 
                             fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
+                            
                             for vc=1:length(C)
- 
-                                vertices=fastbound(C{vc});
- 
-                                if all(vertices) && all(C{vc}~=1)
-                                    bound(vc) = bound(vc)+1;
-                                end
-                            end
+                                bound(vc)=all(fastbound(C{vc}));
+                            end                            
 
                             numbound(c) = sum(bound);
                         end
                     end
+                    
 
                     % Then walk it back until we're below the bound
                     while numbound(c) > upper_bound
@@ -294,27 +293,23 @@ for i=1:size(fnamelist,1)
                             bound = zeros(length(C),1);
 
                             fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
+                            
                             for vc=1:length(C)
- 
-                                vertices=fastbound(C{vc});
- 
-                                if all(vertices) && all(C{vc}~=1)
-                                    bound(vc) = bound(vc)+1;
-                                end
-                            end
+                                bound(vc)=all(fastbound(C{vc}));
+                            end  
  
                             numbound(c) = sum(bound);
                         end
                     end    
                     
-                                     
+                    pixelwindowsize(c) = thiswindowsize;                 
 
                     if TRIM && numbound(c) ~= upper_bound
-
-                        pixelwindowsize(c) = thiswindowsize+1;
+                        
                         % figure(1); clf;
                         % axis([colborders rowborders])
                         % hold on;
+                        pixelwindowsize(c) = pixelwindowsize(c)+1;                 
                         rowborders = ([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]);
                         colborders = ([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
 
@@ -327,14 +322,13 @@ for i=1:size(fnamelist,1)
                         fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
                         for vc=1:length(C)
 
-                            vertices=fastbound(C{vc});
+                            bound(vc)=all(fastbound(C{vc}));
 
-                            if all(vertices) && all(C{vc}~=1)
-                                bound(vc) = bound(vc)+1;
+                            % if bound(vc)
 %                                 patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','green');                                
 %                              else
 %                                  patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','blue');
-                            end
+                            % end
                         end
 
                         numbound(c) = sum(bound);
@@ -357,17 +351,15 @@ for i=1:size(fnamelist,1)
                         fastbound = (V(:,1)<colborders(2) & V(:,1)>colborders(1) & V(:,2)<rowborders(2) & V(:,2)>rowborders(1));
                         for vc=1:length(C)
 
-                            vertices=fastbound(C{vc});
+                            bound(vc)=bound(vc)+all(fastbound(C{vc}));
 
-                            if all(vertices) && all(C{vc}~=1)
-                                bound(vc) = bound(vc)+1;
+                             % if bound(vc) == 2
                              %     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','green');
-                             % 
                              % elseif bound(vc) == 1
                              %     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','red');
                              % else
                              %     patch(V(C{vc},1),V(C{vc},2),ones(size(V(C{vc},1))),'FaceColor','blue');
-                             end
+                             % end
                          end
                         % axis([colborders rowborders])
                         % title('Overage')
@@ -417,6 +409,7 @@ for i=1:size(fnamelist,1)
             
             %% Actually calculate the statistics
             comp_table = [];
+            tic;
             for c=1:size(coords,1)
                 
                 rowborders = ([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
@@ -433,10 +426,18 @@ for i=1:size(fnamelist,1)
                 % displayed
                 % [xmin xmax ymin ymax] 
                 clip_start_end = [colborders rowborders];
-                
+                tic;
                 statistics{c} = determine_mosaic_stats( coords, scaleval, scaleval_deg, selectedunit, clip_start_end , ...
                                                         trimlist{c}, 4 );
+                toc;
                 statistics{c}.Window_Size = pixelwindowsize(c)*scaleval;
+
+
+                if statistics{c}.Number_Bound_Cells ~= numbound(c)
+                    c
+                    pause;
+                end
+
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % Determine FFT Power Spectra %%
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -451,7 +452,7 @@ for i=1:size(fnamelist,1)
                 warning on;
 
             end
-           
+           toc;
             
             %% Map output
 %             metriclist = fieldnames(statistics{1});
