@@ -31,24 +31,23 @@ regularity_nn_index = mean_nn_dist/std(minval.*scale);
 %% Determine Voronoi Cell Area %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 sixsided=0;
-bound = zeros(size(coords,1),1);
+bound = false(size(coords,1),1);
 cellarea = zeros(size(coords,1),1);
 numedges = zeros(size(coords,1),1);
-coords_bound=[];
 
 if size(coords,1) > 2
 
     [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
-
+    fastbound = (V(:,1)<bounds(2) & V(:,1)>bounds(1) & V(:,2)<bounds(4) & V(:,2)>bounds(3));
+    
     % figure(10); hold on;
-    parfor i=1:length(C)
+    for i=1:length(C)
 
         vertices=V(C{i},:);
+      
+        if all(fastbound(C{i})) && all(i ~= ignore_idx) && all(C{i}~=1)  
 
-        if (all(C{i}~=1)  && all(vertices(:,1)<bounds(2)) && all(vertices(:,2)<bounds(4)) ... % [xmin xmax ymin ymax] 
-                         && all(vertices(:,1)>bounds(1)) && all(vertices(:,2)>bounds(3))) && all(i ~= ignore_idx)
-
-            cellarea(i) = polyarea(V(C{i},1),V(C{i},2));
+            cellarea(i) = polyarea(vertices(:,1),vertices(:,2));
 
             % Code to display number of sides for each voronoi domain
             numedges(i)=size(V(C{i},1),1);
@@ -71,10 +70,8 @@ if size(coords,1) > 2
             % patch(V(C{i},1),V(C{i},2),ones(size(V(C{i},1))),'FaceColor',color);
             % hold on;
 
-            coords_bound(i,:) = coords(i,:);
-            bound(i) = 1;
+            bound(i) = true;
         end
-
 
     end
 
@@ -83,8 +80,8 @@ end
 % toc
 % figure(2);
 % voronoi(coords(:,1),coords(:,2));
-if ~isempty(coords_bound)
-    coords_bound=coords_bound(coords_bound(:,1)~=0,:); % Clip out the unbounded cells
+if sum(bound) ~= 0
+    coords_bound= coords(bound,:); % Clip out the unbounded cells
     cellarea_deg = cellarea((cellarea~=0)).*(scaledeg.^2);
     cellarea= cellarea((cellarea~=0)).*(scale.^2); % Clip out unbounded cells, convert to square microns
     numedges = numedges(numedges~=0);
