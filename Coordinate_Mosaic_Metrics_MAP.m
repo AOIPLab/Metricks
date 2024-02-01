@@ -409,8 +409,19 @@ for i=1:size(fnamelist,1)
             
             %% Actually calculate the statistics
             comp_table = [];
-            tic;
+
+            % Pre-fill the struct
             for c=1:size(coords,1)
+                statistics{c} = struct('Number_Unbound_Cells', -1,'Number_Bound_Cells', 0, 'Total_Area', 0, 'Total_Bound_Area',0,...                      
+                      'Bound_Density',0, 'Bound_NN_Distance',0,'Bound_IC_Distance',0,'Bound_Furthest_Distance',0,...
+                      'Bound_Mean_Voronoi_Area', 0,'Bound_Percent_Six_Sided_Voronoi',0,'Unbound_DRP_Distance', 0,...
+                      'Bound_Voronoi_Area_RI',0,'Bound_Voronoi_Sides_RI',0, 'Bound_NN_RI', 0, 'Bound_IC_RI', 0,...
+                      'Unbound_Density', 0 ,'Unbound_NN_Distance', 0, 'Unbound_IC_Distance',0, 'Unbound_Furthest_Distance',0, 'Bound_Density_DEG',0);
+            end
+
+
+            tic;
+            parfor c=1:size(coords,1)
                 
                 rowborders = ([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
                 colborders = ([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
@@ -422,7 +433,8 @@ for i=1:size(fnamelist,1)
                 
                 % [xmin xmax ymin ymax] 
                 clip_start_end = [colborders rowborders];
-                
+                               
+
                 statistics{c} = determine_mosaic_stats( coords, scaleval, scaleval_deg, selectedunit, clip_start_end , ...
                                                         trimlist{c}, 4 );
                 
@@ -430,7 +442,7 @@ for i=1:size(fnamelist,1)
 
 
                 if statistics{c}.Number_Bound_Cells ~= numbound(c)                    
-                    warn(['Warning! Mismatch between how many bound cells we expected (' num2str(numbound(c)) ') and how many we had (' num2str(statistics{c}.Number_Bound_Cells) '!'])
+                    warning(['Warning! Mismatch between how many bound cells we expected (' num2str(numbound(c)) ') and how many we had (' num2str(statistics{c}.Number_Bound_Cells) '!'])
                     pause;
                 end
 
@@ -439,6 +451,16 @@ for i=1:size(fnamelist,1)
                 warning on;
             end
            toc;
+
+           % Validate that we actually ran all cells by checking to make
+           % sure the number of unbound cells isn't still -1.
+           for c=1:size(coords,1)
+                if statistics{c}.Number_Unbound_Cells == -1
+                    warning('At least one cell failed to analyze!')
+                % else
+                %     disp(num2str(statistics{c}.Number_Bound_Cells))
+                end
+           end
             
             %% Map output
 %             metriclist = fieldnames(statistics{1});
