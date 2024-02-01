@@ -296,7 +296,7 @@ for i=1:size(fnamelist,1)
             end
 
 
-            statistics = determine_mosaic_stats( clipped_coords, scaleval, selectedunit, clip_start_end ,[pixelwindowsize pixelwindowsize], 4 );
+            statistics = determine_mosaic_stats( clipped_coords, scaleval, selectedunit, clip_start_end ,zeros(size(clipped_coords,1), 4 );
 
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% Determine FFT Power Spectra %%
