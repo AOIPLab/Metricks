@@ -420,37 +420,23 @@ for i=1:size(fnamelist,1)
                 rowborders(rowborders>maxrowval) =maxrowval;
                 colborders(colborders>maxcolval) =maxcolval;
                 
-                    
-                %ccc=length(clipped_coords);
-                % disp(ccc) if you want the number of clipped coordinates
-                % displayed
                 % [xmin xmax ymin ymax] 
                 clip_start_end = [colborders rowborders];
-                tic;
+                
                 statistics{c} = determine_mosaic_stats( coords, scaleval, scaleval_deg, selectedunit, clip_start_end , ...
                                                         trimlist{c}, 4 );
-                toc;
+                
                 statistics{c}.Window_Size = pixelwindowsize(c)*scaleval;
 
 
-                if statistics{c}.Number_Bound_Cells ~= numbound(c)
-                    c
+                if statistics{c}.Number_Bound_Cells ~= numbound(c)                    
+                    warn(['Warning! Mismatch between how many bound cells we expected (' num2str(numbound(c)) ') and how many we had (' num2str(statistics{c}.Number_Bound_Cells) '!'])
                     pause;
                 end
-
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % Determine FFT Power Spectra %%
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                 if (exist('fit_fourier_spacing.m','file') == 2) && exist(fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']), 'file')==2
-%                     [pixel_spac, interped_map] = fit_fourier_spacing(im);
-%                     statistics{c}.DFT_Spacing = pixel_spac*scaleval;                
-%                 end
-
 
                 warning off;
                 [ success ] = mkdir(basepath,'Results');
                 warning on;
-
             end
            toc;
             

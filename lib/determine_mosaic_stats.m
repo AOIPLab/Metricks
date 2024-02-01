@@ -136,21 +136,49 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-m=1;
-inter_cell_dist = [];
-max_cell_dist = [];
+inter_cell_dist = zeros(size(clipped_coords,1),1);
+max_cell_dist = zeros(size(clipped_coords,1),1);
 
-correct_inter_cell_dist = zeros(size(coords,1),1);
-correct_max_cell_dist = zeros(size(coords,1),1);
-correct_nn_cell_dist = zeros(size(coords,1),1);
+correct_inter_cell_dist = zeros(sum(bound),1);
+correct_max_cell_dist = zeros(sum(bound),1);
+correct_nn_cell_dist = zeros(sum(bound),1);
 if size(coords,1) > 2
-    dt = DelaunayTri(coords);
 
-    % Find all instances of each coordinate point
-    for k=1 : size(coords,1)
+    dt = DelaunayTri(coords);    
 
+    % Find all instances of each bound cell.
+    boundinds = find(bound);
+    for k=1:numel(boundinds)
 
-        [i j] =find(dt.Triangulation == k);
+        % If its bound, then we've flagged it as such, and can use it in the triangulation
+        % Only take the first row because that is the cell of interest's
+        % relative distance to its neighboring cells
+        ind = boundinds(k);
+
+        [i, j] =find(dt.Triangulation == ind);
+
+        conn_ind = dt.Triangulation(i,:);
+
+        coord_row = unique(conn_ind( conn_ind ~= ind)); % Find all of the unique coordinate points that isn't the "center" coordinate
+
+        if(size(i,1)~=1)
+            coord_row = [ind; coord_row]; % Add the "center" to the top, so we know the order for the distances
+        else
+            coord_row = [ind; coord_row']; 
+        end
+
+        cell_dist = squareform(pdist([coords(coord_row,1) coords(coord_row,2)]));
+            
+        correct_inter_cell_dist(k) = scale*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+        correct_max_cell_dist(k)   = scale*max(cell_dist(1,:));
+        correct_nn_cell_dist(k)    = scale*min(cell_dist(1,2:end));        
+    end
+
+    % Repeat the above, but with all cells in the unbound region..
+    dt = DelaunayTri(clipped_coords);
+    for k=1:size(clipped_coords,1)
+
+        [i, j] =find(dt.Triangulation == k);
 
         conn_ind = dt.Triangulation(i,:);
 
@@ -164,21 +192,11 @@ if size(coords,1) > 2
 
         cell_dist = squareform(pdist([coords(coord_row,1) coords(coord_row,2)]));
 
-        if bound(k) == 1 % If its bound, then we've flagged it as such, and can use it in the triangulation
-            % Only take the first row because that is the cell of interest's
-            % relative distance to its neighboring cells
-            correct_inter_cell_dist(m) = scale*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
-            correct_max_cell_dist(m)   = scale*max(cell_dist(1,:));
-            correct_nn_cell_dist(m)    = scale*min(cell_dist(1,2:end));
-    %         figure(1); triplot(dt); hold on; plot(coords(coord_row,1),coords(coord_row,2),'r.'); plot(coords(k,1),coords(k,2),'g.');  hold off;
-            m = m+1;
-        end
-
-        inter_cell_dist = [inter_cell_dist; scale*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1))];
-        max_cell_dist   = [max_cell_dist; scale*max(cell_dist(1,:))];    
-
+        inter_cell_dist(k) = scale*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+        max_cell_dist(k)   = scale*max(cell_dist(1,:));
     end
-    m = m-1;
+
+
     mean_inter_cell_dist = mean(inter_cell_dist);    
     mean_max_cell_dist   = mean( max_cell_dist );
 else
@@ -187,10 +205,10 @@ else
 end
     
 if ~isempty(coords_bound)
-    mean_correct_nn_dist = mean( correct_nn_cell_dist(1:m) );
-    mean_correct_inter_cell_dist = mean(correct_inter_cell_dist(1:m));
-    regularity_ic_index = mean(correct_inter_cell_dist(1:m))./std(correct_inter_cell_dist(1:m));
-    mean_correct_max_cell_dist   = mean( correct_max_cell_dist(1:m) );    
+    mean_correct_nn_dist = mean( correct_nn_cell_dist );
+    mean_correct_inter_cell_dist = mean(correct_inter_cell_dist);
+    regularity_ic_index = mean(correct_inter_cell_dist)./std(correct_inter_cell_dist);
+    mean_correct_max_cell_dist   = mean( correct_max_cell_dist );    
     
 else
     regularity_ic_index = 0;
@@ -198,6 +216,7 @@ else
     mean_correct_inter_cell_dist=0;
     mean_correct_max_cell_dist=0;
 end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Determine Density Recovery Profile %% 
