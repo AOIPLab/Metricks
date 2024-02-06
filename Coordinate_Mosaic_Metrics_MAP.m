@@ -239,8 +239,6 @@ for i=1:size(fnamelist,1)
                 pixelwindowsize = zeros(size(coords,1),1);
                 numbound = zeros(size(coords,1),1);
                 trimlist = cell(size(coords,1), 1);
-                removedlist = cell(size(coords,1), 1);
-                removedlist(:,1) = {0};
 
                 
                 [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
@@ -401,7 +399,6 @@ for i=1:size(fnamelist,1)
                         % title('Trimmed')
                         % pause;
                         
-                        removedlist{c} = size(toremove,2);
                         trimlist{c} = ignoreindx;
                         numbound(c) = upper_bound;
                     end
@@ -414,7 +411,7 @@ for i=1:size(fnamelist,1)
             comp_table = [];
 
             % Pre-fill the struct
-            parfor c=1:size(coords,1)
+            for c=1:size(coords,1)
                 statistics{c} = struct('Number_Unbound_Cells', -1,'Number_Bound_Cells', 0, 'Total_Area', 0, 'Total_Bound_Area',0,...                      
                       'Bound_Density',0, 'Bound_NN_Distance',0,'Bound_IC_Distance',0,'Bound_Furthest_Distance',0,...
                       'Bound_Mean_Voronoi_Area', 0,'Bound_Percent_Six_Sided_Voronoi',0,'Unbound_DRP_Distance', 0,...
@@ -424,7 +421,7 @@ for i=1:size(fnamelist,1)
 
 
             tic;
-            for c=1:size(coords,1)
+            parfor c=1:size(coords,1)
                 
                 rowborders = ([coords(c,2)-(pixelwindowsize(c)/2) coords(c,2)+(pixelwindowsize(c)/2)]); 
                 colborders = ([coords(c,1)-(pixelwindowsize(c)/2) coords(c,1)+(pixelwindowsize(c)/2)]);
@@ -559,9 +556,6 @@ for i=1:size(fnamelist,1)
             win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', thisval);
             save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
 
-            %save removed cells for each window for each subject
-            filename_2 = fullfile(basepath,'Results',[subjectID{LUTindex} '_removed_list_' date '.csv']);
-            writecell(removedlist, filename_2);
             % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_area_', date, '.mat']), "bound_area");
             % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_UNbound_area_', date, '.mat']), "unbound_area");
             % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_num_cells_', date, '.mat']), "bound_num_cells");
