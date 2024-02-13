@@ -12,7 +12,7 @@ clc
 
 basePath = which('Plot_Isodensity_Contours_Overlay_80th_Percentile_Only.m');
 [basePath] = fileparts(basePath);
-path(path,fullfile(basePath,'lib3')); % Add our support library to the path.
+path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 [basepath] = uigetdir(pwd);
 [fnamelist] = read_folder_contents(basepath,'csv');
 [scalingfname, scalingpath] = uigetfile(fullfile(basepath,'*.csv'),'Select scaling LUT.');

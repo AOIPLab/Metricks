@@ -1,10 +1,16 @@
 % Script to make maps separately from the Mosaic map script
+% Input: need folder with window_results .mat files, coordinate files, and
+% tif images for each subject.
+% - The script can run multiple subjects at a time or just one
+% Output: Map or Map and csv if bound_density_deg selected
 % 1/24/24
 % Jenna Grieshop
 
 clear all
 clc
 
+% update clims based on min and max of your data
+clims = [500 2500]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
 
 liststr = {'bound_area','unbound_area','bound_num_cells', 'unbound_num_cells', 'bound_density_deg', 'bound_density'};
 [selectedmap, oked] = listdlg('PromptString','Select map type:',...
@@ -94,7 +100,7 @@ for i=1:size(fnamelist,1)
     
     vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
     
-    clims = [500 2500]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
+   
     
     dispfig=figure(1); 
     imagesc(interped_map,clims); % added to use limits of color scale, by Joe 2/19/22
