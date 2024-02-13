@@ -1,4 +1,4 @@
-% Standard deviation of maps
+% Standard deviation of maps of different window sizes
 % 1/26/2024
 % Jenna Grieshop
 
@@ -9,18 +9,24 @@ addpath('lib');
 sub_id = {''};
 
 
-root_path = uigetdir('.','Select directory containing analyses');
+root_path_bd = uigetdir('.','Select directory containing bound density analyses');
+
+root_path_cdc = uigetdir('.','Select directory containing CDC analyses');
 
 % get all the file paths that we are interested in in each of the folders
-[file_paths] = read_folder_contents_rec(root_path, 'mat', 'MATFILE');
+[file_paths_bd] = read_folder_contents_rec(root_path_bd, 'mat', 'MATFILE');
+
+%get all the file paths that we are interested in in each of the folders
+[file_paths_cdc] = read_folder_contents_rec(root_path_cdc, 'csv', 'PCD_CDC_Analysis_Summary');
 
 
 % finding all the subject Ids within the folders
-for i=1:size(file_paths,1)
-    spl = split(file_paths{i,1}, "_");
+for i=1:size(file_paths_bd,1)
+    spl = split(file_paths_bd{i,1}, "_bound");
     spl = split(spl{1,1}, "\");
     spl = spl(end);
-    if contains(sub_id{:}, spl)
+    ispresent = cellfun(@(s) ~isempty(strfind(spl{:}, s)), sub_id);
+    if any(ispresent)
         continue
     else
         sub_id{i} = spl{1};
@@ -28,11 +34,36 @@ for i=1:size(file_paths,1)
     
 end
 
+sum_x = cell(size(sub_id, 2),1);
+sum_x(:,1) = {0};
+sum_y = cell(size(sub_id, 2),1);
+sum_y(:,1) = {0};
+
+for m=1:size(file_paths_cdc,1)
+    cdc_data = readtable(file_paths_cdc{m});
+    for n=1:size(cdc_data, 1)
+        sum_x{n} = sum_x{n} + cdc_data{n,8};
+        sum_y{n} = sum_y{n} + cdc_data{n,9};
+
+    end
+end
+
+sum_x = cell2mat(sum_x(:)); % convert so can be divided
+sum_y = cell2mat(sum_y(:)); % convert so can be divided
+
+
+avg_x(:) = sum_x(:)/size(file_paths_cdc,1);
+avg_y(:) = sum_y(:)./size(file_paths_cdc,1);
+
+
 for j=1:size(sub_id,2)
 
-    index = find(contains(file_paths,sub_id(j)));
+    clear maps;
+    clear A;
+    
+    index = find(contains(file_paths_bd,sub_id(j)));
     for m=1:size(index,1)
-        data = load(file_paths{m});
+        data = load(file_paths_bd{index(m)});
         maps{m} = round(data.interped_map,2);
         A(:,:,m) = maps{m}; % maps is an unnecesary middle step - but good for trouble shooting
     end
@@ -67,9 +98,15 @@ for j=1:size(sub_id,2)
     subjectID = sub_id(j); 
     subjectID = subjectID{1};
     result_fname = [subjectID '_stdev_' date '_raw.tif'];
-    imwrite(scaled_map, vmap, fullfile(root_path,result_fname));
+    imwrite(scaled_map, vmap, fullfile(root_path_bd,result_fname));
+
+    result_fname2 = [subjectID '_stdev_' date '_marked.tif'];
+    scaled_map_mark = uint8(255*standard_dev./max(clims));
+    MARK = insertShape(scaled_map_mark,'circle',[avg_x(j) avg_y(j) 2], 'LineWidth' ,3, 'Color' , 'red');
+    imwrite(MARK, vmap, fullfile(root_path_bd,result_fname2));
 
     
+   
 end
 
 
