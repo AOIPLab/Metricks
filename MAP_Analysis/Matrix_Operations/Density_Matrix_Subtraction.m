@@ -202,11 +202,11 @@ csvwrite(fullfile(LUTpathname, [filename '.csv']),resultMatrix);
 imwrite(resultMatrix, parula(256),fullfile(LUTpathname, [filename '.tif']));
 
 % %display difference map asa 3D plot
-% vis = mesh(resultMatrix);
-% view(0,90);
-% set(gca, 'Visible', 'off')
-% f = gcf;
-% exportgraphics(f,[filename '2.tif'],'Resolution',300)
+vis = mesh(resultMatrix);
+view(0,90);
+set(gca, 'Visible', 'on')
+f = gcf;
+exportgraphics(f,[filename '2.tif'],'Resolution',300)
 
 % save as svg for figure making
 matrix = resultMatrix;

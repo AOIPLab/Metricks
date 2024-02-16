@@ -94,7 +94,6 @@ for j=1:size(sub_id,2)
     scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
     scaled_map(scaled_map  >255) = 255; %in case there are values above this
 
-
     subjectID = sub_id(j); 
     subjectID = subjectID{1};
     result_fname = [subjectID '_stdev_' date '_raw.tif'];
@@ -105,10 +104,20 @@ for j=1:size(sub_id,2)
     MARK = insertShape(scaled_map_mark,'circle',[avg_x(j) avg_y(j) 2], 'LineWidth' ,3, 'Color' , 'red');
     imwrite(MARK, vmap, fullfile(root_path_bd,result_fname2));
 
+    result_fname3 = [subjectID '_stdev_' date '_raw.csv'];
+    csvwrite(fullfile(root_path_bd, result_fname3), standard_dev);
     
-   
+    master_cdc(j,1) = {sub_id{j}};
+    master_cdc(j,2) = {avg_x(j)};
+    master_cdc(j,3) = {avg_y(j)};
+  
 end
 
-
+header = {'Subject ID', 'X CDC master', 'Y CDC master'};
+finaloutput = [header; master_cdc];
+result_fname4 = ['stdev_' date '_master_cdc.xlsx'];
+% csvwrite(fullfile(root_path_bd, result_fname4), cell2mat(master_cdc));
+% writecell(finaloutput, fullfile(root_path_bd, result_fname4));
+xlswrite(fullfile(root_path_bd, result_fname4), master_cdc);
 
 
