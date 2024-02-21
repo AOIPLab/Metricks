@@ -74,22 +74,26 @@ for i=1:size(file_paths_raw,1)
     integerTest_x =~ mod(master_cdc_x,1);
     integerTest_y =~ mod(master_cdc_y,1);
 
-    % if integers just get that row, if now average the two rows it is in
+    % if integers just get that row, if not do weighted average the two rows it is in
     % between.
     if integerTest_x
         h_strip = stdev_data(:,master_cdc_x);
     else
-        h1 = stdev_data(:,floor(master_cdc_x));
-        h2 = stdev_data(:,ceil(master_cdc_x));
-        h_strip = (h1 + h2)/2;
+        down_weight_h = ceil(master_cdc_x) - master_cdc_x;
+        up_weight_h = 1-down_weight_h;
+        down_h = stdev_data(:,floor(master_cdc_x)) * down_weight_h;
+        up_h = stdev_data(:,ceil(master_cdc_x)) * up_weight_h;
+        h_strip = up_h + down_h;
     end
 
     if integerTest_y
         v_strip = stdev_data(master_cdc_y, :);
     else
-        v1 = stdev_data(:,floor(master_cdc_y));
-        v2 = stdev_data(:,ceil(master_cdc_y));
-        v_strip = (v1 + v2)/2;
+        down_weight_v = ceil(master_cdc_y) - master_cdc_y;
+        up_weight_v = 1-down_weight_v;
+        down_v = stdev_data(:,floor(master_cdc_y)) * down_weight_v;
+        up_v = stdev_data(:,ceil(master_cdc_y)) * up_weight_v;
+        v_strip = up_v + down_v;
     end
 
     data.x_h = (0:length(h_strip)-1)';
