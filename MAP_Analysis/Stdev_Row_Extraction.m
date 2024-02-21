@@ -276,10 +276,18 @@ for k=1:size(all_h_data,2)
 end
 
 avg_h_bin = sum_h_bin(:)/size(all_h_data,2);
+stdev_h_bin = std(avg_h_bin);
+
+plus_stdev_h_bin = avg_h_bin + (stdev_h_bin * 2);
+minus_stdev_h_bin = avg_h_bin - (stdev_h_bin * 2);
 
 x_h_bin = (curr_min_h_bin_center:window:curr_max_h_bin_center)';
 figure(3)
 plot(x_h_bin, avg_h_bin);
+hold on 
+plot(x_h_bin, plus_stdev_h_bin, ':b');
+plot(x_h_bin, minus_stdev_h_bin, ':b');
+hold off
 title("Average Horizontal Stdev Through CDC Point");
 xlabel("Microns");
 ylabel("Standard Deviation");
@@ -307,10 +315,17 @@ for k=1:size(all_v_data,2)
 end
 
 avg_v_bin = sum_v_bin(:)/size(all_v_data,2);
+stdev_v_bin = std(avg_v_bin);
+
+plus_stdev_v_bin = avg_v_bin + (stdev_v_bin * 2);
+minus_stdev_v_bin = avg_v_bin - (stdev_v_bin * 2);
 
 x_v_bin = (curr_min_v_bin_center:window:curr_max_v_bin_center)';
 figure(4)
 plot(x_v_bin, avg_v_bin);
+hold on 
+plot(x_v_bin, plus_stdev_v_bin, ':b')
+plot(x_v_bin, minus_stdev_v_bin, ':b')
 title("Average Vertical Stdev Through CDC Point");
 xlabel("Microns");
 ylabel("Standard Deviation");
