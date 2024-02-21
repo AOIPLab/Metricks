@@ -69,6 +69,8 @@ for j=1:size(sub_id,2)
     end
 
     standard_dev = std(A, [], 3);
+    average = mean(A,3);
+    coeffofvar = standard_dev/average;
     vmap=viridis; %calls viridis colormap function
     
     clims = [0 25000]; % added to set limits of color scale, so all images use the same scale
@@ -106,6 +108,9 @@ for j=1:size(sub_id,2)
 
     result_fname3 = [subjectID '_stdev_' date '_raw.csv'];
     csvwrite(fullfile(root_path_bd, result_fname3), standard_dev);
+
+    result_fname5 = [subjectID '_coeffvar_' date '_raw.csv'];
+    csvwrite(fullfile(root_path_bd, result_fname5), coeffofvar);
     
     master_cdc(j,1) = {sub_id{j}};
     master_cdc(j,2) = {avg_x(j)};

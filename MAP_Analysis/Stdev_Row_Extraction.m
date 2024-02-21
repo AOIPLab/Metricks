@@ -12,8 +12,8 @@ addpath('lib');
 root_path_raw = uigetdir('.','Select directory containing raw stdev csv analyses');
 
 % get all the file paths that we are interested in in each of the folders
-[file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv', 'raw');
-
+[file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv', 'raw'); % used for stdev map
+% [file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv','coeffvar'); % used for CoV
 
 % select master cdc file
 [filename_master_cdc, pathname_master_cdc] = uigetfile('*.xlsx', 'Please select the master cdc list', 'MultiSelect', 'off');
@@ -306,7 +306,7 @@ for k=1:size(all_v_data,2)
         if all_v_data{1,k}{1,1}(m) < curr_min_v_bin_center || all_v_data{1,k}{1,1}(m) > curr_max_v_bin_center
             continue
         else
-            sum_v_bin(count_v) = all_v_data{1,k}{1,2}(m) + sum_v_bin(count_h);
+            sum_v_bin(count_v) = all_v_data{1,k}{1,2}(m) + sum_v_bin(count_v);
             count_v = count_v + 1;
         end
     end
