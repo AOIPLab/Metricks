@@ -111,6 +111,9 @@ for j=1:size(sub_id,2)
 
     result_fname5 = [subjectID '_coeffvar_' date '_raw.csv'];
     csvwrite(fullfile(root_path_bd, result_fname5), coeffofvar);
+
+    result_fname6 = [subjectID '_average_' date '_raw.csv'];
+    csvwrite(fullfile(root_path_bd, result_fname6), average);
     
     master_cdc(j,1) = {sub_id{j}};
     master_cdc(j,2) = {avg_x(j)};
