@@ -1,7 +1,7 @@
-% Plotting the individual horizontal and vertical rows extracted at the cdc
-% coordinates. The files in the folder must match exactly what is in the
+% Loads in the raw extracted rows from avg and stdev and gets the cov
+% The files in the folder must match exactly what is in the
 % master cdc list in the correct order.
-% 1/26/2024
+% 2/27/2024
 % Jenna Grieshop
 
 clear all
@@ -9,26 +9,16 @@ clc
 addpath('lib');
 
 % get path that the data in is
-root_path_raw = uigetdir('.','Select directory containing raw stdev csv analyses');
+root_path_stdev = uigetdir('.','Select directory containing raw stdev csv results');
+root_path_avg = uigetdir('.','Select directory containing raw avg csv results');
 
-% get all the file paths that we are interested in in each of the folders
-[file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv', 'raw'); % used for stdev map
-% [file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv','coeffvar'); % used for CoV
+% find files for average h and v
+[root_path_avg_h] = read_folder_contents_rec(root_path_avg, 'mat', '_h');
+[root_path_avg_v] = read_folder_contents_rec(root_path_avg, 'mat', '_v');
 
-% select master cdc file
-[filename_master_cdc, pathname_master_cdc] = uigetfile('*.xlsx', 'Please select the master cdc list', 'MultiSelect', 'off');
-
-% select cdc analysis file
-[filename_cdc, pathname_cdc] = uigetfile('*.csv', 'Please select the cdc analysis summary file', 'MultiSelect', 'off');
-
-
-% load in cdc LUT data and extract all the subject IDs
-LUT_data = readtable(fullfile(pathname_cdc, filename_cdc));
-% sub_id = cdc_data(:,1);
-% spl = split(sub_id{:,1}, "_");
-% subjectID = spl(:,1);
-
-master_cdc = readtable(fullfile(pathname_master_cdc, filename_master_cdc));
+% fine files for stdev h and v
+[root_path_stdev_h] = read_folder_contents_rec(root_path_stdev, 'mat', '_h');
+[root_path_stdev_v] = read_folder_contents_rec(root_path_stdev, 'mat', '_v');
 
 
 % set up messages to be displayed to user to set spacing and window in the desired lateral unit
@@ -59,61 +49,40 @@ while spacing < (window)
 end
 
 
-% go through all the subjects
-for i=1:size(file_paths_raw,1)
 
-    % get the scale factor
-    scale = LUT_data{i,10}; % umpp
+% load in data
+avg_data_h = load(root_path_avg_h{1});
+avg_data_v = load(root_path_avg_v{1});
 
-    % load in the stdev data and master cdc coords
-    stdev_data = load(file_paths_raw{i});
-    master_cdc_x = master_cdc{i,2};
-    master_cdc_y = master_cdc{i,3};
+stdev_data_h = load(root_path_stdev_h{1});
+stdev_data_v = load(root_path_stdev_v{1});
 
-    % check if the cdc coords are integers
-    integerTest_x =~ mod(master_cdc_x,1);
-    integerTest_y =~ mod(master_cdc_y,1);
+for i=1:44
+    xy_h_converted = zeros(length(stdev_data_h.all_subjects_raw_h_rc_stdev{1,i}(:,1)), 2);
+    xy_v_converted = zeros(length(stdev_data_v.all_subjects_raw_v_rc_stdev{1,i}(:,1)), 2);
 
-    % if integers just get that row, if not do weighted average the two rows it is in
-    % between.
-    if integerTest_x
-        h_strip = stdev_data(:,master_cdc_x);
-    else
-        down_weight_h = ceil(master_cdc_x) - master_cdc_x;
-        up_weight_h = 1-down_weight_h;
-        down_h = stdev_data(:,floor(master_cdc_x)) * down_weight_h;
-        up_h = stdev_data(:,ceil(master_cdc_x)) * up_weight_h;
-        h_strip = up_h + down_h;
-    end
+    xy_h_converted(:,1) = stdev_data_h.all_subjects_raw_h_rc_stdev{1,i}(:,1);
+    xy_v_converted(:,1) = stdev_data_v.all_subjects_raw_v_rc_stdev{1,i}(:,1);
+    xy_h_converted(:,2) = stdev_data_h.all_subjects_raw_h_rc_stdev{1,i}(:,2)./avg_data_h.all_subjects_raw_h_rc_avg{1,i}(:,2);
+    xy_v_converted(:,2) = stdev_data_v.all_subjects_raw_v_rc_stdev{1,i}(:,2)./avg_data_v.all_subjects_raw_v_rc_avg{1,i}(:,2);
 
-    if integerTest_y
-        v_strip = stdev_data(master_cdc_y, :);
-    else
-        down_weight_v = ceil(master_cdc_y) - master_cdc_y;
-        up_weight_v = 1-down_weight_v;
-        down_v = stdev_data(:,floor(master_cdc_y)) * down_weight_v;
-        up_v = stdev_data(:,ceil(master_cdc_y)) * up_weight_v;
-        v_strip = up_v + down_v;
-    end
+    CoV_h{i} = stdev_data_h.all_subjects_raw_h_rc_stdev{1,i}(:,2)./avg_data_h.all_subjects_raw_h_rc_avg{1,i}(:,2);
+    CoV_v{i} = stdev_data_v.all_subjects_raw_v_rc_stdev{1,i}(:,2)./avg_data_v.all_subjects_raw_v_rc_avg{1,i}(:,2);
 
-    data.x_h = (0:length(h_strip)-1)';
-    data.x_v = (0:length(v_strip)-1)';
-    data.y_h = h_strip';
-    data.y_v = v_strip';
-    
-    % get x
-    xy_h_converted = zeros(length(data.x_h), 2);
-    xy_v_converted = zeros(length(data.x_v), 2);
-    for j=1:length(data.x_h)
-        xy_h_converted(j,1) = (data.x_h(j) - master_cdc_y) * scale; % now in um
-        xy_v_converted(j,1) = (data.x_v(j) - master_cdc_x) * scale; % now in um
-        xy_h_converted(j,2) = data.y_h(j);
-        xy_v_converted(j,2) = data.y_v(j);
-    end
-
-    all_subjects_raw_h_rc_stdev{i} = xy_h_converted;
-    all_subjects_raw_v_rc_stdev{i} = xy_v_converted;
-
+    %  % basic plot of the individual results
+    % figure(1)
+    % plot(stdev_data_h.all_subjects_raw_h_rc_stdev{1,i}(:,1),  CoV_h{i});
+    % title("Horizontal CoV Through CDC Point");
+    % xlabel("Microns");
+    % ylabel("CoV");
+    % hold on
+    % 
+    % figure(2)
+    % plot(stdev_data_h.all_subjects_raw_h_rc_stdev{1,i}(:,1),CoV_v{i});
+    % title("Vertical CoV Through CDC Point");
+    % xlabel("Microns");
+    % ylabel("CoV");
+    % hold on
 
     % get list of bin centers
     x_h_max = max(xy_h_converted(:,1));
@@ -131,7 +100,7 @@ for i=1:size(file_paths_raw,1)
     bin_centers_right_v(1) = []; % get rid of second zero before combining
     bin_centers_h = [flip(bin_centers_left_h), bin_centers_right_h]; % combine
     bin_centers_v = [flip(bin_centers_left_v), bin_centers_right_v]; % combine
-
+    
 %% horizontal
     % initialize values and arrays
     sum_h = 0;
@@ -180,24 +149,8 @@ for i=1:size(file_paths_raw,1)
         count_v = 0; % reset value
     end
 
-% %% graph individual plots
-%     % basic plot of the individual results
-%     figure(1)
-%     plot(xy_h_converted(:,1), xy_h_converted(:,2));
-%     title("Horizontal Stdev Through CDC Point");
-%     xlabel("Microns");
-%     ylabel("Standard Deviation");
-%     hold on
-% 
-%     figure(2)
-%     plot(xy_v_converted(:,1), xy_v_converted(:,2));
-%     title("Vertical Stdev Through CDC Point");
-%     xlabel("Microns");
-%     ylabel("Standard Deviation");
-%     hold on
-
 %% format output and save to file
-    output_fname_h = strcat(num2str(master_cdc{i,1}), '_Horizontal_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+    % output_fname_h = strcat(num2str(master_cdc{i,1}), '_Horizontal_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
 
     % setting up for table creation
     BinCenter_h = num2cell(bin_centers_h');
@@ -208,13 +161,13 @@ for i=1:size(file_paths_raw,1)
     
     
     % write output file
-    writetable(T_h, fullfile(pathname_cdc,output_fname_h));
+    % writetable(T_h, fullfile(pathname_cdc,output_fname_h));
 
 
     all_h_data{i} = {bin_centers_h', averages_h}; 
 
 
-    output_fname_v = strcat(num2str(master_cdc{i,1}), '_Vertical_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+    % output_fname_v = strcat(num2str(master_cdc{i,1}), '_Vertical_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
 
     % setting up for table creation
     BinCenter_v = num2cell(bin_centers_v');
@@ -224,19 +177,12 @@ for i=1:size(file_paths_raw,1)
     T_v = table(BinCenter_v, Average_v, ItemsInBin_v);
     
     % write output file
-    writetable(T_v, fullfile(pathname_cdc,output_fname_v));
+    % writetable(T_v, fullfile(pathname_cdc,output_fname_v));
 
     all_v_data{i} = {bin_centers_v', averages_v};
- 
 
 end
 
-%% save raw data for all subjects
-
-fname_h_all = fullfile(pathname_cdc, 'all_h_rc_stdev_data.mat');
-fname_v_all = fullfile(pathname_cdc, 'all_v_rc_stdev_data.mat');
-save(fname_h_all, 'all_subjects_raw_h_rc_stdev');
-save(fname_v_all, 'all_subjects_raw_v_rc_stdev');
 
 %% Average Values in bins across subjects
 
@@ -268,12 +214,10 @@ end
 
 count_h = 1;
 sum_h_bin = zeros(((curr_max_h_bin_center-curr_min_h_bin_center)/window) + 1,1);
-clear all_h_data_in_bin
 
 %% horizontal
 % go through all the subjects
 for k=1:size(all_h_data,2)
-    % all_h_data_in_bin = zeros(size((all_h_data{1,k}{1,1}),1),1);
     % go through all the bin centers
     for m=1:size((all_h_data{1,k}{1,1}))
 
@@ -281,7 +225,6 @@ for k=1:size(all_h_data,2)
             continue
         else
             sum_h_bin(count_h) = all_h_data{1,k}{1,2}(m) + sum_h_bin(count_h);
-            all_h_data_in_bin(k,count_h) = all_h_data{1,k}{1,2}(m);
             count_h = count_h + 1;
         end
     end
@@ -290,10 +233,10 @@ for k=1:size(all_h_data,2)
 end
 
 avg_h_bin = sum_h_bin(:)/size(all_h_data,2);
-stdev_h_bin = std(all_h_data_in_bin,0,1); % standard deviation of columns (bins)
+stdev_h_bin = std(avg_h_bin);
 
-plus_stdev_h_bin = avg_h_bin + (stdev_h_bin' * 2);
-minus_stdev_h_bin = avg_h_bin - (stdev_h_bin' * 2);
+plus_stdev_h_bin = avg_h_bin + (stdev_h_bin * 2);
+minus_stdev_h_bin = avg_h_bin - (stdev_h_bin * 2);
 
 x_h_bin = (curr_min_h_bin_center:window:curr_max_h_bin_center)';
 f = figure(3);
@@ -302,30 +245,28 @@ hold on
 plot(x_h_bin, plus_stdev_h_bin, ':b');
 plot(x_h_bin, minus_stdev_h_bin, ':b');
 hold off
-title("Average Horizontal Stdev Through CDC Point");
+title("Average Horizontal CoV Through CDC Point");
 xlabel("Microns");
-ylabel("Stdev");
+ylabel("CoV");
 
-output_fname_horz_graph = strcat('Horizontal_Stdev_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
-print(f, '-dsvg', fullfile(pathname_cdc,output_fname_horz_graph));
+output_fname_horz_graph = strcat('Horizontal_CoV_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
+print(f, '-dsvg', fullfile(root_path_stdev,output_fname_horz_graph));
 
 %% vertical
 
 count_v = 1;
 sum_v_bin = zeros(((curr_max_v_bin_center-curr_min_v_bin_center)/window) + 1,1);
-clear all_v_data_in_bin
+
 
 % go through all the subjects
 for k=1:size(all_v_data,2)
-    % all_v_data_in_bin = zeros(size((all_v_data{1,k}{1,1}),1),1);
     % go through all the bin centers
     for m=1:size((all_v_data{1,k}{1,1}))
-        
+
         if all_v_data{1,k}{1,1}(m) < curr_min_v_bin_center || all_v_data{1,k}{1,1}(m) > curr_max_v_bin_center
             continue
         else
             sum_v_bin(count_v) = all_v_data{1,k}{1,2}(m) + sum_v_bin(count_v);
-            all_v_data_in_bin(k,count_v) = all_v_data{1,k}{1,2}(m);
             count_v = count_v + 1;
         end
     end
@@ -334,10 +275,10 @@ for k=1:size(all_v_data,2)
 end
 
 avg_v_bin = sum_v_bin(:)/size(all_v_data,2);
-stdev_v_bin = std(all_v_data_in_bin,0,1);
+stdev_v_bin = std(avg_v_bin);
 
-plus_stdev_v_bin = avg_v_bin + (stdev_v_bin' * 2);
-minus_stdev_v_bin = avg_v_bin - (stdev_v_bin' * 2);
+plus_stdev_v_bin = avg_v_bin + (stdev_v_bin * 2);
+minus_stdev_v_bin = avg_v_bin - (stdev_v_bin * 2);
 
 x_v_bin = (curr_min_v_bin_center:window:curr_max_v_bin_center)';
 g = figure(4);
@@ -345,14 +286,12 @@ plot(x_v_bin, avg_v_bin);
 hold on 
 plot(x_v_bin, plus_stdev_v_bin, ':b')
 plot(x_v_bin, minus_stdev_v_bin, ':b')
-title("Average Vertical Stdev Through CDC Point");
+title("Average Vertical CoV Through CDC Point");
 xlabel("Microns");
-ylabel("Stdev");
+ylabel("CoV");
 
-output_fname_vert_graph = strcat('Vertical_Stdev_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
-print(g, '-dsvg', fullfile(pathname_cdc,output_fname_vert_graph));
-
-
+output_fname_vert_graph = strcat('Vertical_CoV_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
+print(g, '-dsvg', fullfile(root_path_stdev,output_fname_vert_graph));
 
 
 
