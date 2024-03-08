@@ -12,8 +12,7 @@ addpath('lib');
 root_path_raw = uigetdir('.','Select directory containing raw stdev csv analyses');
 
 % get all the file paths that we are interested in in each of the folders
-[file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv', 'raw'); % used for stdev map
-% [file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv','coeffvar'); % used for CoV
+[file_paths_raw] = read_folder_contents_rec(root_path_raw, 'csv', 'matrix'); % used for stdev map
 
 % select master cdc file
 [filename_master_cdc, pathname_master_cdc] = uigetfile('*.xlsx', 'Please select the master cdc list', 'MultiSelect', 'off');
@@ -63,7 +62,8 @@ end
 for i=1:size(file_paths_raw,1)
 
     % get the scale factor
-    scale = LUT_data{i,10}; % umpp
+    scale = LUT_data{i,11}; % umpp
+    eye = LUT_data{i,2};
 
     % load in the stdev data and master cdc coords
     stdev_data = load(file_paths_raw{i});
@@ -105,7 +105,13 @@ for i=1:size(file_paths_raw,1)
     xy_h_converted = zeros(length(data.x_h), 2);
     xy_v_converted = zeros(length(data.x_v), 2);
     for j=1:length(data.x_h)
-        xy_h_converted(j,1) = (data.x_h(j) - master_cdc_y) * scale; % now in um
+        % check what eye - if left flip sign so that temporal is negative -
+        % need eye from the lut file to do this
+        if strcmp(eye,'OD')
+            xy_h_converted(j,1) = (data.x_h(j) - master_cdc_y) * scale; % now in um
+        else
+            xy_h_converted(j,1) = -(data.x_h(j) - master_cdc_y) * scale; % now in um
+        end
         xy_v_converted(j,1) = (data.x_v(j) - master_cdc_x) * scale; % now in um
         xy_h_converted(j,2) = data.y_h(j);
         xy_v_converted(j,2) = data.y_v(j);
@@ -180,24 +186,24 @@ for i=1:size(file_paths_raw,1)
         count_v = 0; % reset value
     end
 
-% %% graph individual plots
-%     % basic plot of the individual results
-%     figure(1)
-%     plot(xy_h_converted(:,1), xy_h_converted(:,2));
-%     title("Horizontal Stdev Through CDC Point");
-%     xlabel("Microns");
-%     ylabel("Standard Deviation");
-%     hold on
-% 
-%     figure(2)
-%     plot(xy_v_converted(:,1), xy_v_converted(:,2));
-%     title("Vertical Stdev Through CDC Point");
-%     xlabel("Microns");
-%     ylabel("Standard Deviation");
-%     hold on
+%% graph individual plots
+    % basic plot of the individual results
+    figure(1)
+    plot(xy_h_converted(:,1), xy_h_converted(:,2));
+    title("Horizontal Stdev Through CDC Point");
+    xlabel("Microns");
+    ylabel("Standard Deviation");
+    hold on
+
+    figure(2)
+    plot(xy_v_converted(:,1), xy_v_converted(:,2));
+    title("Vertical Stdev Through CDC Point");
+    xlabel("Microns");
+    ylabel("Standard Deviation");
+    hold on
 
 %% format output and save to file
-    output_fname_h = strcat(num2str(master_cdc{i,1}), '_Horizontal_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+    output_fname_h = strcat(master_cdc{i,1}, '_Horizontal_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
 
     % setting up for table creation
     BinCenter_h = num2cell(bin_centers_h');
@@ -214,7 +220,7 @@ for i=1:size(file_paths_raw,1)
     all_h_data{i} = {bin_centers_h', averages_h}; 
 
 
-    output_fname_v = strcat(num2str(master_cdc{i,1}), '_Vertical_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+    output_fname_v = strcat(master_cdc{i,1}, '_Vertical_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
 
     % setting up for table creation
     BinCenter_v = num2cell(bin_centers_v');
@@ -233,10 +239,10 @@ end
 
 %% save raw data for all subjects
 
-fname_h_all = fullfile(pathname_cdc, 'all_h_rc_stdev_data.mat');
-fname_v_all = fullfile(pathname_cdc, 'all_v_rc_stdev_data.mat');
-save(fname_h_all, 'all_subjects_raw_h_rc_stdev');
-save(fname_v_all, 'all_subjects_raw_v_rc_stdev');
+% fname_h_all = fullfile(pathname_cdc, 'all_h_rc_stdev_data.mat');
+% fname_v_all = fullfile(pathname_cdc, 'all_v_rc_stdev_data.mat');
+% save(fname_h_all, 'all_subjects_raw_h_rc_stdev');
+% save(fname_v_all, 'all_subjects_raw_v_rc_stdev');
 
 %% Average Values in bins across subjects
 
@@ -302,11 +308,11 @@ hold on
 plot(x_h_bin, plus_stdev_h_bin, ':b');
 plot(x_h_bin, minus_stdev_h_bin, ':b');
 hold off
-title("Average Horizontal Stdev Through CDC Point");
+title("Average Horizontal Density Through CDC Point");
 xlabel("Microns");
-ylabel("Stdev");
+ylabel("Density");
 
-output_fname_horz_graph = strcat('Horizontal_Stdev_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
+output_fname_horz_graph = strcat('Horizontal_Density_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
 print(f, '-dsvg', fullfile(pathname_cdc,output_fname_horz_graph));
 
 %% vertical
@@ -345,11 +351,11 @@ plot(x_v_bin, avg_v_bin);
 hold on 
 plot(x_v_bin, plus_stdev_v_bin, ':b')
 plot(x_v_bin, minus_stdev_v_bin, ':b')
-title("Average Vertical Stdev Through CDC Point");
+title("Average Vertical Density Through CDC Point");
 xlabel("Microns");
-ylabel("Stdev");
+ylabel("Density");
 
-output_fname_vert_graph = strcat('Vertical_Stdev_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
+output_fname_vert_graph = strcat('Vertical_Density_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
 print(g, '-dsvg', fullfile(pathname_cdc,output_fname_vert_graph));
 
 
