@@ -1,1 +1,72 @@
 *.asv
+test_data/1 MAP input/72824906.tif
+test_data/1 MAP input/72824906_coords.csv
+test_data/1 MAP input/74787803.tif
+test_data/1 MAP input/74787803_coords.csv
+test_data/1 MAP input/7657484.tif
+test_data/1 MAP input/7657484_coords.csv
+test_data/1 MAP input/LUT (1) for PCD TIFs.csv
+test_data/1 MAP output/72824906_bounddensity_matrix_13-Nov-2023.csv
+test_data/1 MAP output/72824906_coords_bound_map_13-Nov-2023_Bound_Density_fig.png
+test_data/1 MAP output/72824906_coords_bound_map_13-Nov-2023_Bound_Density_marked.tif
+test_data/1 MAP output/72824906_coords_bound_map_13-Nov-2023_Bound_Density_raw5.tif
+test_data/1 MAP output/74787803_bounddensity_matrix_13-Nov-2023.csv
+test_data/1 MAP output/74787803_coords_bound_map_13-Nov-2023_Bound_Density_fig.png
+test_data/1 MAP output/74787803_coords_bound_map_13-Nov-2023_Bound_Density_marked.tif
+test_data/1 MAP output/74787803_coords_bound_map_13-Nov-2023_Bound_Density_raw5.tif
+test_data/1 MAP output/7657484_bounddensity_matrix_13-Nov-2023.csv
+test_data/1 MAP output/7657484_coords_bound_map_13-Nov-2023_Bound_Density_fig.png
+test_data/1 MAP output/7657484_coords_bound_map_13-Nov-2023_Bound_Density_marked.tif
+test_data/1 MAP output/7657484_coords_bound_map_13-Nov-2023_Bound_Density_raw5.tif
+test_data/2 PCD_CDC input/72824906_bounddensity_matrix_13-Nov-2023.csv
+test_data/2 PCD_CDC input/74787803_bounddensity_matrix_13-Nov-2023.csv
+test_data/2 PCD_CDC input/7657484_bounddensity_matrix_13-Nov-2023.csv
+test_data/2 PCD_CDC input/LUT (1) for PCD TIFs.csv
+test_data/2 PCD_CDC output/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80.tif
+test_data/2 PCD_CDC output/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80_only.tif
+test_data/2 PCD_CDC output/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_contour_80.csv
+test_data/2 PCD_CDC output/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_marked.tif
+test_data/2 PCD_CDC output/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80.tif
+test_data/2 PCD_CDC output/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80_only.tif
+test_data/2 PCD_CDC output/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_contour_80.csv
+test_data/2 PCD_CDC output/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_marked.tif
+test_data/2 PCD_CDC output/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80.tif
+test_data/2 PCD_CDC output/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80_only.tif
+test_data/2 PCD_CDC output/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_contour_80.csv
+test_data/2 PCD_CDC output/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_marked.tif
+test_data/2 PCD_CDC output/Analysis Summary/All_max_coords_80_percentile_13-Nov-2023.csv
+test_data/2 PCD_CDC output/Analysis Summary/PCD_CDC_Analysis_Summary_13-Nov-2023.csv
+test_data/3 Ellipse_contour input/325042804_bounddensity_matrix_13-Nov-2023.csv
+test_data/3 Ellipse_contour input/712805202_bounddensity_matrix_13-Nov-2023.csv
+test_data/3 Ellipse_contour input/LUT (1) for PCD TIFs.csv
+test_data/3 Ellipse_contour output/325042804_bounddensity_matrix_13-Nov-2023.csv
+test_data/3 Ellipse_contour output/325042804_combined_contours.csv
+test_data/3 Ellipse_contour output/325042804_combined_contours.tif
+test_data/3 Ellipse_contour output/712805202_combined_contours.csv
+test_data/3 Ellipse_contour output/712805202_combined_contours.tif
+test_data/3 Ellipse_contour output/EllipseCenterCoords_13-Nov-2023.csv
+test_data/3 Ellipse_contour output/EllipseCenterCoords_28-Nov-2023.csv
+test_data/4 Compare_windows input/CDC_Table.csv
+test_data/4 Compare_windows input/CDC_Table.xlsx
+test_data/4 Compare_windows input/Compare_Observers_Ellipse_Input_Instructions.docx
+test_data/4 Compare_windows input/Compare_Script_Instructions.docx
+test_data/4 Compare_windows input/PCD_Table.csv
+test_data/4 Compare_windows input/PCD_Table.xlsx
+test_data/4 Compare_windows output/72824906.fig
+test_data/4 Compare_windows output/72824906.tif
+test_data/4 Compare_windows output/72824906_95CI_CDC.fig
+test_data/4 Compare_windows output/72824906_95CI_CDC.tif
+test_data/4 Compare_windows output/72824906_95CI_PCD.fig
+test_data/4 Compare_windows output/72824906_95CI_PCD.tif
+test_data/4 Compare_windows output/74787803.fig
+test_data/4 Compare_windows output/74787803.tif
+test_data/4 Compare_windows output/74787803_95CI_CDC.fig
+test_data/4 Compare_windows output/74787803_95CI_CDC.tif
+test_data/4 Compare_windows output/74787803_95CI_PCD.fig
+test_data/4 Compare_windows output/74787803_95CI_PCD.tif
+test_data/4 Compare_windows output/7657484.fig
+test_data/4 Compare_windows output/7657484.tif
+test_data/4 Compare_windows output/7657484_95CI_CDC.fig
+test_data/4 Compare_windows output/7657484_95CI_CDC.tif
+test_data/4 Compare_windows output/7657484_95CI_PCD.fig
+test_data/4 Compare_windows output/7657484_95CI_PCD.tif
