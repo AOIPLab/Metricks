@@ -1,49 +1,53 @@
-% Script to make maps separately from the Mosaic map script
-% Input: need folder with window_results .mat files, coordinate files, and
+% Stand Alone Map Creator
+% Purpose: To make maps separately from the Mosaic Metricks Map script
+% Input: Folder with window_results .mat files, coordinate files, and
 % tif images for each subject.
 % - The script can run multiple subjects at a time or just one
 % Output: Map or Map and csv if bound_density_deg selected
-% 1/24/24
+% Date created: 1/24/24
 % Jenna Grieshop
 
 clear all
 clc
 
-% update clims based on min and max of your data
-clims = [500 2500]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
+% Update clims based on min and max of your data
+clims = [500 2500]; % Set limits of color scale so all images use the same scale
 
+% Options of maps to create for user to select
 liststr = {'bound_area','unbound_area','bound_num_cells', 'unbound_num_cells', 'bound_density_deg', 'bound_density'};
-[selectedmap, oked] = listdlg('PromptString','Select map type:',...
+[selectedMap, oked] = listdlg('PromptString','Select map type:',...
                               'SelectionMode','single',...
                               'ListString',liststr);
 if oked == 0
     error('Cancelled by user.');
 end
 
-root_path = uigetdir('.','Select directory containing analyses');
-root_dir = dir(root_path);
-root_dir = struct2cell(root_dir)';
+selectedMap = liststr{selectedMap};  
 
-selectedmap = liststr{selectedmap};   
+% Get directory of data
+rootPath = uigetdir('.','Select directory containing analyses');
+rootDir = dir(rootPath);
+rootDir = struct2cell(rootDir)';
 
-[fnamelist, isadir ] = read_folder_contents(root_path,'csv');
-[fnamelisttxt, isdirtxt ] = read_folder_contents(root_path,'txt');
+% Find all csv and txt files
+[fnameList, isadir ] = read_folder_contents(rootPath,'csv');
+[fnameListTxt, isDirTxt ] = read_folder_contents(rootPath,'txt');
 
-fnamelist = [fnamelist; fnamelisttxt];
-isadir = [isadir;isdirtxt];
-
-
-% looks for all the window results
-win_results_dir = root_dir(...
-    ~cellfun(@isempty, strfind(root_dir(:,1), 'window_results')),:);
+fnameList = [fnameList; fnameListTxt];
+isadir = [isadir;isDirTxt];
 
 
-for i=1:size(fnamelist,1)
+% Looks for all the window results
+winResultsDir = rootDir(...
+    ~cellfun(@isempty, strfind(rootDir(:,1), 'window_results')),:);
 
-    subject_ID = fnamelist{i}(1:8);
 
-    %Read in coordinates - assumes x,y
-    coords=dlmread(fullfile(root_path,fnamelist{i}));
+for i=1:size(fnameList,1)
+
+    subjectID = fnameList{i}(1:8);
+
+    % Read in coordinates - assumes x,y
+    coords=dlmread(fullfile(rootPath,fnameList{i}));
     
     % It should ONLY be a coordinate list, that means x,y, and
     % nothing else.
@@ -52,88 +56,94 @@ for i=1:size(fnamelist,1)
         continue;
     end
 
-    if exist(fullfile(root_path, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']), 'file')
+    % If the image exists use it for the dimensions
+    if exist(fullfile(rootPath, [fnameList{i}(1:end-length('_coords.csv')) '.tif']), 'file')
 
-        im = imread( fullfile(root_path, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']));
+        im = imread( fullfile(rootPath, [fnameList{i}(1:end-length('_coords.csv')) '.tif']));
 
         width = size(im,2);
         height = size(im,1);
-        maxrowval = height;
-        maxcolval = width;
+        maxRowVal = height;
+        maxColVal = width;
+    % If it doesn't exist, warn the user and then use coords for the
+    % dimensions
     else
-        warning(['No matching image file found for ' fnamelist{i}]);
+        warning(['No matching image file found for ' fnameList{i}]);
         coords = coords-min(coords)+1;
         width  = ceil(max(coords(:,1)));
         height = ceil(max(coords(:,2)));
-        maxrowval = max(coords(:,2));
-        maxcolval = max(coords(:,1));
+        maxRowVal = max(coords(:,2));
+        maxColVal = max(coords(:,1));
     end
 
 
-    data = load(fullfile(win_results_dir{i,2}, win_results_dir{i,1}));
+    % Load in the data
+    data = load(fullfile(winResultsDir{i,2}, winResultsDir{i,1}));
 
-    interped_map=zeros([height width]);
+    % Initialize the map and meshgrid
+    interpedMap=zeros([height width]);
     [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
     
     
-    if selectedmap == "bound_density_deg"
+    % Based on the map the user selected, create the interpolation with the
+    % correct data in the struct
+    if selectedMap == "bound_density_deg"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_density_DEG);  
-    elseif selectedmap == "bound_density"
+    elseif selectedMap == "bound_density"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_density); 
-    elseif selectedmap == "bound_area"
+    elseif selectedMap == "bound_area"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_area);       
-    elseif selectedmap == "unbound_area"
+    elseif selectedMap == "unbound_area"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.unbound_area);
-    elseif selectedmap == "bound_num_cells"
+    elseif selectedMap == "bound_num_cells"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_num_cells);
-    elseif selectedmap == "unbound_num_cells"
+    elseif selectedMap == "unbound_num_cells"
         scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.unbound_num_cells);
     else
         disp("something is wrong");
     end
 
-    interped_map = scattah(Xq,Yq);
-    smoothed_interped_map = imgaussfilt(interped_map,20);
+    interpedMap = scattah(Xq,Yq);
+    smoothedInterpedMap = imgaussfilt(interpedMap,20); % Filters interpedMap with a 2-D Gaussian smoothing kernel with standard deviation 20
     
-    interped_map(isnan(interped_map)) =0;
-    smoothed_interped_map(isnan(smoothed_interped_map)) =0;
+    % Set nans to 0
+    interpedMap(isnan(interpedMap)) =0;
+    smoothedInterpedMap(isnan(smoothedInterpedMap)) =0;
     
-    vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
+    vmap=viridis; %calls viridis colormap function from library
     
    
-    
+    % Plot the map
     dispfig=figure(1); 
-    imagesc(interped_map,clims); % added to use limits of color scale, by Joe 2/19/22
+    imagesc(interpedMap,clims); % use limits of color scale set above
     axis image;
     colormap(vmap); 
     colorbar; 
-    [minval, minind] = min(interped_map(:));
-    [maxval, maxind] = max(interped_map(:));
-    
-    [minrow,mincol]=ind2sub(size(interped_map),minind);
-    [maxrow,maxcol]=ind2sub(size(interped_map),maxind);
-    
-    max_x_vals = maxcol;
-    max_y_vals = maxrow;
-    
-   % disp([subject_ID ' Maximum value: ' num2str(round(maxval)) '(' num2str(maxcol) ',' num2str(maxrow) ')' ]) % display added by Katie Litts in 2019
-               
-    title(['Minimum value: ' num2str(minval) '(' num2str(mincol) ',' num2str(minrow) ') Maximum value: ' num2str(maxval) '(' num2str(maxcol) ',' num2str(maxrow) ')']);
-    
-    result_fname = [selectedmap, '_map_' date];
-    
-    %updated to scale to the max of clims 10/11/23     
-    scaled_map = interped_map-min(clims);
-    scaled_map(scaled_map <0) =0; %in case there are min values below this
-    scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
-    scaled_map(scaled_map  >255) = 255; %in case there are values above this
-    imwrite(scaled_map, vmap, fullfile(root_path,[subject_ID, '_', result_fname '_raw.tif'])); %added by Joe Carroll 
 
-    if selectedmap == "bound_density_deg"
-        filename = fullfile(root_path,'Results',[subject_ID '_bounddensity_matrix_DEG_' date '.csv']);
-        writematrix(interped_map, filename);
-        %save matrix as matfile
-        save(fullfile(root_path,'Results',[subject_ID '_bounddensity_matrix_DEG_MATFILE_' date '.mat']), "interped_map");
+    % Get the min and max values
+    [minVal, minInd] = min(interpedMap(:));
+    [maxVal, maxInd] = max(interpedMap(:));
+    
+    [minRow,minCol]=ind2sub(size(interpedMap),minInd);
+    [maxRow,maxCol]=ind2sub(size(interpedMap),maxInd);
+  
+    % Set title and file name
+    title(['Minimum value: ' num2str(minVal) '(' num2str(minCol) ',' num2str(minRow) ') Maximum value: ' num2str(maxVal) '(' num2str(maxCol) ',' num2str(maxRow) ')']);
+    resultFname = [selectedMap, '_map_' datestr(now, 'dd_mmm_yyyy')];
+    
+    % Scale to the max of clims 
+    scaledMap = interpedMap-min(clims);
+    scaledMap(scaledMap <0) =0; % In case there are min values below this
+    scaledMap = uint8(255*scaledMap./(max(clims)-min(clims)));
+    scaledMap(scaledMap  >255) = 255; % In case there are values above this
+    imwrite(scaledMap, vmap, fullfile(rootPath,[subjectID, '_', resultFname '_raw.tif'])); % Save map image
+
+    % If bound density deg selected save csv and mat file as well
+    if selectedMap == "bound_density_deg"
+        fileName = fullfile(rootPath,'Results',[subjectID '_bounddensity_matrix_DEG_' datestr(now, 'dd_mmm_yyyy') '.csv']);
+        writematrix(interpedMap, fileName);
+        % Save matrix as matfile
+        save(fullfile(rootPath,'Results',[subjectID '_bounddensity_matrix_DEG_MATFILE_' datestr(now, 'dd_mmm_yyyy') '.mat']), "interpedMap");
     end
 
 end
