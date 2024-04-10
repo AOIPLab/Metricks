@@ -70,3 +70,38 @@ test_data/4 Compare_windows output/7657484_95CI_CDC.fig
 test_data/4 Compare_windows output/7657484_95CI_CDC.tif
 test_data/4 Compare_windows output/7657484_95CI_PCD.fig
 test_data/4 Compare_windows output/7657484_95CI_PCD.tif
+test_data/7 new maps_standalone maps input/72824906.tif
+test_data/7 new maps_standalone maps input/72824906_coords.csv
+test_data/7 new maps_standalone maps input/72824906_window_results_08-Feb-2024.mat
+test_data/7 new maps_standalone maps input/74787803.tif
+test_data/7 new maps_standalone maps input/74787803_coords.csv
+test_data/7 new maps_standalone maps input/74787803_window_results_08-Feb-2024.mat
+test_data/7 new maps_standalone maps input/7657484.tif
+test_data/7 new maps_standalone maps input/7657484_coords.csv
+test_data/7 new maps_standalone maps input/7657484_window_results_08-Feb-2024.mat
+test_data/7 new maps_standalone maps output/72824906_bound_area_map_10_Apr_2024_raw.tif
+test_data/7 new maps_standalone maps output/72824906_bound_density_deg_map_10_Apr_2024_raw.tif
+test_data/7 new maps_standalone maps output/72824906_bounddensity_matrix_DEG_10_Apr_2024.csv
+test_data/7 new maps_standalone maps output/72824906_bounddensity_matrix_DEG_MATFILE_10_Apr_2024.mat
+test_data/7 new maps_standalone maps output/74787803_bound_area_map_10_Apr_2024_raw.tif
+test_data/7 new maps_standalone maps output/74787803_bound_density_deg_map_10_Apr_2024_raw.tif
+test_data/7 new maps_standalone maps output/74787803_bounddensity_matrix_DEG_10_Apr_2024.csv
+test_data/7 new maps_standalone maps output/74787803_bounddensity_matrix_DEG_MATFILE_10_Apr_2024.mat
+test_data/7 new maps_standalone maps output/7657484__bound_area_map_10_Apr_2024_raw.tif
+test_data/7 new maps_standalone maps output/7657484__bound_density_deg_map_10_Apr_2024_raw.tif
+test_data/7 new maps_standalone maps output/7657484__bounddensity_matrix_DEG_10_Apr_2024.csv
+test_data/7 new maps_standalone maps output/7657484__bounddensity_matrix_DEG_MATFILE_10_Apr_2024.mat
+test_data/2 PCD_CDC output/New folder/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80.tif
+test_data/2 PCD_CDC output/New folder/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80_only.tif
+test_data/2 PCD_CDC output/New folder/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_contour_80.csv
+test_data/2 PCD_CDC output/New folder/72824906_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_marked.tif
+test_data/2 PCD_CDC output/New folder/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80.tif
+test_data/2 PCD_CDC output/New folder/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80_only.tif
+test_data/2 PCD_CDC output/New folder/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_contour_80.csv
+test_data/2 PCD_CDC output/New folder/74787803_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_marked.tif
+test_data/2 PCD_CDC output/New folder/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80.tif
+test_data/2 PCD_CDC output/New folder/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_80_only.tif
+test_data/2 PCD_CDC output/New folder/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_contour_80.csv
+test_data/2 PCD_CDC output/New folder/7657484_bounddensity_matrix_13-Nov-2023.csv_bestFitEllipse_marked.tif
+test_data/2 PCD_CDC output/New folder/All_max_coords_80_percentile_10_Apr_2024.csv
+test_data/2 PCD_CDC output/New folder/PCD_CDC_Analysis_Summary_10_Apr_2024.csv

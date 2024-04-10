@@ -10,6 +10,12 @@
 clear all
 clc
 
+
+basepath = which('Stand_Alone_Map_Creator.m');
+[basepath] = fileparts(basepath);
+
+path(path,fullfile(basepath,'lib')); % Add our support library to the path.
+
 % Update clims based on min and max of your data
 clims = [500 2500]; % Set limits of color scale so all images use the same scale
 
@@ -140,10 +146,10 @@ for i=1:size(fnameList,1)
 
     % If bound density deg selected save csv and mat file as well
     if selectedMap == "bound_density_deg"
-        fileName = fullfile(rootPath,'Results',[subjectID '_bounddensity_matrix_DEG_' datestr(now, 'dd_mmm_yyyy') '.csv']);
+        fileName = fullfile(rootPath, [subjectID '_bounddensity_matrix_DEG_' datestr(now, 'dd_mmm_yyyy') '.csv']);
         writematrix(interpedMap, fileName);
         % Save matrix as matfile
-        save(fullfile(rootPath,'Results',[subjectID '_bounddensity_matrix_DEG_MATFILE_' datestr(now, 'dd_mmm_yyyy') '.mat']), "interpedMap");
+        save(fullfile(rootPath, [subjectID '_bounddensity_matrix_DEG_MATFILE_' datestr(now, 'dd_mmm_yyyy') '.mat']), "interpedMap");
     end
 
 end
