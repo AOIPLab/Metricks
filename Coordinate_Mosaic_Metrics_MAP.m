@@ -555,14 +555,7 @@ for i=1:size(fnamelist,1)
             %save additional window results for each subject
             win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', thisval);
             save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
-
-            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_area_', date, '.mat']), "bound_area");
-            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_UNbound_area_', date, '.mat']), "unbound_area");
-            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_bound_num_cells_', date, '.mat']), "bound_num_cells");
-            % save(fullfile(basepath, 'Results', [subjectID{LUTindex}, '_UNbound_num_cells_', date, '.mat']), "unbound_num_cells");
-
-      
-             
+     
             %%
         end
     catch ex
