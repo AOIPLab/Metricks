@@ -24,12 +24,11 @@ basePath = which('PCD_CDC_Analysis.m');
 path(path,fullfile(basePath,'lib')); 
 
 % User selects folder with data
-rootPath = uigetdir('.','Select directory containing analyses');
-% rootPath = fileparts(rootPath);
+dataPath = uigetdir('.','Select directory containing analyses');
 
 % Read in csv names and then have user select the LUT
-[fnameList] = read_folder_contents(rootPath,'csv');
-[scalingFname, scalingPath] = uigetfile(fullfile(rootPath,'*.csv'),'Select scaling LUT.');
+[fnameList] = read_folder_contents(dataPath,'csv');
+[scalingFname, scalingPath] = uigetfile(fullfile(dataPath,'*.csv'),'Select scaling LUT.');
 
 % Remove LUT file from fnameList
 fnameList(ismember(fnameList,scalingFname))=[];
@@ -91,7 +90,7 @@ for i=1:size(fnameList,1) % Go through all files in list
 
     
     % Load in the density map and find the max value (peak)
-    densityMap = csvread(fullfile(rootPath,fnameList{i}));
+    densityMap = csvread(fullfile(dataPath,fnameList{i}));
     peak = max(densityMap(:));
 
 
@@ -147,15 +146,15 @@ for i=1:size(fnameList,1) % Go through all files in list
     % Writing the image
     resultFname = [fnameList{i} '_bestFitEllipse_'];
     f=getframe;
-    imwrite(f.cdata, fullfile(rootPath,[resultFname threshStr '.tif']));
+    imwrite(f.cdata, fullfile(dataPath,[resultFname threshStr '.tif']));
        
     % Writing only the contour
-    imwrite(contour, fullfile(rootPath,[resultFname threshStr '_only.tif']));
+    imwrite(contour, fullfile(dataPath,[resultFname threshStr '_only.tif']));
           
     % Joe's modification
     [y, x] = find(contour(:,:,2) == 1); %This seems to be correct
     coords = [x,y];
-    writematrix(coords, fullfile(rootPath,[resultFname 'contour_' threshStr '.csv'])); %save coordinates of the percent contour
+    writematrix(coords, fullfile(dataPath,[resultFname 'contour_' threshStr '.csv'])); %save coordinates of the percent contour
     
     % Code to find densty at CDC
     ellipsefitThresh.X0_rnd =  round(ellipsefitThresh.X0_in);
@@ -175,7 +174,7 @@ densityMapMark = uint8(255*densityMapMark./max(densityMapMark(:)));
 
 MARK = insertShape(densityMapMark,'circle',[centroidX centroidY 2], 'LineWidth' ,3, 'Color' , 'red');
 MARK = insertShape(MARK,'circle',[ellipsefitThresh.X0_in ellipsefitThresh.Y0_in 2], 'LineWidth' ,3, 'Color' , 'blue');
-imwrite(MARK, vmap, fullfile(rootPath,[resultFname 'marked.tif']));
+imwrite(MARK, vmap, fullfile(dataPath,[resultFname 'marked.tif']));
 
 end
 
@@ -185,10 +184,10 @@ data = num2cell(data);
 header = {'File Name', 'Peak', 'Centroid(max)_x', 'Centroid(max)_y',['PixelAreaAbove_0.' threshStr], ['um2AreaAbove_0.' threshStr], 'Density at CDC', 'EliCenter_0.8_x', 'EliCenter_0.8_y', 'um_per_pixel'};
 EllipseCenterCoords = cat(2,fnameList, data);
 EllipseCenterCoords = cat(1, header, EllipseCenterCoords);
-writecell(EllipseCenterCoords, fullfile(rootPath, ['PCD_CDC_Analysis_Summary_', datestr(now, 'dd_mmm_yyyy'), '.csv']));
+writecell(EllipseCenterCoords, fullfile(dataPath, ['PCD_CDC_Analysis_Summary_', datestr(now, 'dd_mmm_yyyy'), '.csv']));
 
 % Write all max value locations to file
 unpackedMaxes = vertcat(allMaxes{:});
-writecell(unpackedMaxes, fullfile(rootPath, ['All_max_coords_' threshStr '_percentile_' datestr(now, 'dd_mmm_yyyy') '.csv']));
+writecell(unpackedMaxes, fullfile(dataPath, ['All_max_coords_' threshStr '_percentile_' datestr(now, 'dd_mmm_yyyy') '.csv']));
 
 
