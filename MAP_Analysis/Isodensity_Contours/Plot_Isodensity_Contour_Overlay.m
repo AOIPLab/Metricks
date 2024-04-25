@@ -1,5 +1,6 @@
-% Creates coordinate files for density contours in AOSLO images. Created by
-% JAC 9 May 2019
+% Creates Isodensity Contour Overlay combined percentiles (75-95%) plots
+% and coordinates
+%
 % NOTE, this requires a bounddensitymatrix file, NOT a cone coordinate file!
 %
 % Input: bound density matrix .csv files from Metrick MAP output, same LUT
@@ -12,6 +13,9 @@
 clear all
 close all
 clc
+
+% Configure output header
+header = {'File Name', 'Peak', 'Max_x', 'Max_y'};
 
 % Add our support library to the path.
 basePath = which('Plot_Isodensity_Contours_Overlay.m');
@@ -28,8 +32,17 @@ dataPath = uigetdir('.','Select directory containing analyses');
 % Remove LUT file from fnameList
 fnameList(ismember(fnameList,scalingFname))=[];
 
+% Threshold percentile selection by the user
+list = {'75', '80', '85', '90', '95'};
+[indx, tf] = listdlg('PromptString', 'Select the desired threshold percentile.', 'SelectionMode', 'multiple', 'ListString', list);
+
+if tf ~= 1
+    % Canceled dialog box - end the program
+    return
+end
+
 for i = 1:length(fnameList)
-    
+
     densityMap = csvread(fullfile(dataPath, fnameList{i}));
     peak = max(densityMap(:));
     
@@ -37,71 +50,62 @@ for i = 1:length(fnameList)
     [maxRow,maxCol]=ind2sub(size(densityMap),maxInd);       
     maxX = maxCol;
     maxY = maxRow;
-    
-    threshold75 = (densityMap >= (0.75*peak));
-    contour75 = edge(threshold75); 
-    % added for ellipse
-    [y75, x75] = find(contour75);  % x and y are column vectors.
-    ellipseFit75 = fit_ellipse(x75,y75);
-    coord75 = [ellipseFit75.X0_in, ellipseFit75.Y0_in];
-    contour75 = double(contour75);
-    
-    threshold80 = (densityMap >= (0.8*peak));
-    contour80 = edge(threshold80);
-    % added for ellipse
-    [y80, x80] = find(contour80);  % x and y are column vectors.
-    ellipseFit80 = fit_ellipse(x80,y80);
-    coord80 = [ellipseFit80.X0_in, ellipseFit80.Y0_in];
-    contour80 = double(contour80);
+
+    for j=1:length(indx)
         
-    threshold85 = (densityMap >= (0.85*peak));
-    contour85 = edge(threshold85);
-    % added for ellipse
-    [y85, x85] = find(contour85);  % x and y are column vectors.
-    ellipseFit85 = fit_ellipse(x85,y85);
-    coord85 = [ellipseFit85.X0_in, ellipseFit85.Y0_in];
-    contour85 = double(contour85);
-    
-    threshold90 = (densityMap >= (0.9*peak));
-    contour90 = edge(threshold90);
-    % added for ellipse
-    [y90, x90] = find(contour90);  % x and y are column vectors.
-    ellipseFit90 = fit_ellipse(x90,y90);
-    coord90 = [ellipseFit90.X0_in, ellipseFit90.Y0_in];
-    contour90 = double(contour90);
-    
-    threshold95 = (densityMap >= (0.95*peak));
-    contour95 = edge(threshold95);
-    % added for ellipse
-    [y95, x95] = find(contour95);  % x and y are column vectors.
-    ellipseFit95 = fit_ellipse(x95,y95);
-    coord95 = [ellipseFit95.X0_in, ellipseFit95.Y0_in];
-    contour95 = double(contour95);
-    
-    % combine the contours
-    combinedContours = contour75 | contour80 | contour85 | contour90 | contour95;
-    
-    % create and save the figure
+        % Get the percentile
+        thresholdPercentile = str2num(list{indx(j)})/100;
+        threshStr{j} = list{indx(j)};
+
+
+        threshold = (densityMap >= (thresholdPercentile*peak));
+        contour = edge(threshold); 
+        % Added for ellipse
+        [y{j}, x{j}] = find(contour);  % x and y are column vectors.
+        ellipseFit{j} = fit_ellipse(x{j},y{j});
+        % coord = [ellipseFit{j}.X0_in, ellipseFit{j}.Y0_in];
+        contour_cell{j} = double(contour);
+
+
+        % Combine the contours
+        if j == 1
+            combinedContours = contour_cell{j};
+            elipseCombined = [ellipseFit{j}.X0_in, ellipseFit{j}.Y0_in];
+        else
+            combinedContours = or(combinedContours, contour_cell{j});
+            elipseCombined = [elipseCombined, ellipseFit{j}.X0_in, ellipseFit{j}.Y0_in];
+        end
+    end
+      
+    % Create and save the figure
     figure(1);
     imshow(combinedContours);
     saveas(gcf, fullfile(dataPath, [fnameList{i}(1:end-length('_bounddensity_matrix_xx-xxx-xxxx.csv')) '_combined_contours.tif']));
 
-    % save matrix
-    [y, x] = find(contour80 == 1);
-    coords = [x,y];
-    writematrix(coords, fullfile(dataPath,[fnameList{i}(1:end-length('_bounddensity_matrix_xx-xxx-xxxx.csv')) '_combined_contours.csv'])); %save combined contours
+    % save coordinates - this is from a previous version; unsure about why
+    % it was needed so commented out
+    % [y, x] = find(contour80 == 1);
+    % coords = [x,y];
+    % writematrix(coords, fullfile(dataPath,[fnameList{i}(1:end-length('_bounddensity_matrix_xx-xxx-xxxx.csv')) '_combined_contours.csv'])); %save combined contours
     
-    % compile the data for each subject
+    % Compile the data for each subject
     if (i == 1)
-        data = [peak, maxX, maxY, ellipseFit75.X0_in, ellipseFit75.Y0_in, ellipseFit80.X0_in, ellipseFit80.Y0_in, ellipseFit85.X0_in, ellipseFit85.Y0_in, ellipseFit90.X0_in, ellipseFit90.Y0_in, ellipseFit95.X0_in, ellipseFit95.Y0_in];
+        data = [peak, maxX, maxY, elipseCombined];
     else
-        data = [data; peak, maxX, maxY, ellipseFit75.X0_in, ellipseFit75.Y0_in, ellipseFit80.X0_in, ellipseFit80.Y0_in, ellipseFit85.X0_in, ellipseFit85.Y0_in, ellipseFit90.X0_in, ellipseFit90.Y0_in, ellipseFit95.X0_in, ellipseFit95.Y0_in];
+        data = [data; peak, maxX, maxY, elipseCombined];
     end
 end
 
-% combine the compiled data with the headers and save matrix
+% Compile the rest of the header information
+count = 4;
+for j=1:length(indx)
+    header{1,j+count} = sprintf('EliCenter_%s_x', threshStr{j});
+    header{1,j+count+1} = sprintf('EliCenter_%s_y', threshStr{j});
+    count = count+1;
+end
+
+% Combine the compiled data with the headers and save matrix
 data = num2cell(data);
-header = {'File Name', 'Peak', 'Max_x', 'Max_y','EliCenter_0.75_x', 'EliCenter_0.75_y', 'EliCenter_0.8_x', 'EliCenter_0.8_y', 'EliCenter_0.85_x', 'EliCenter_0.85_y', 'EliCenter_0.9_x', 'EliCenter_0.9_y', 'EliCenter_0.95_x', 'EliCenter_0.95_y'};
 EllipseCenterCoords = cat(2,fnameList, data);
 EllipseCenterCoords = cat(1, header, EllipseCenterCoords);
 writecell(EllipseCenterCoords, fullfile(dataPath, ['EllipseCenterCoords_', datestr(now, datestr(now, 'dd_mmm_yyyy')), '.csv']));
