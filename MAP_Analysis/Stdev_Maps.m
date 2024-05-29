@@ -1,7 +1,7 @@
 % Standard Deviation MAPs (& Average and CoV Maps)
 %
-% 1/26/2024
-% Jenna Grieshop
+% Created by:Jenna Grieshop
+% Date created: 1/26/2024
 %
 % Description: This scripts determines standard deviation of density from
 % previously made density maps. Originally used to compare density maps
