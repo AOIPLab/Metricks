@@ -1,27 +1,21 @@
 % Author: Jenna Grieshop
-% Date of creation: 2/22/22, v5
-
-% Description: Script that performs element-wise subtraction on two density
-% matrices. Matrices do not need to be the same size, they do need to be scaled to one another. First selected matrix MINUS second selected matrix. 
-% Select the matrices in the same order that they are listed in the CDC lut
-% file. It is recommended to select the smaller one first.
-% The resulting matrix is saved as an output as a .csv, a tif, and a svg.
-% The svgs are only readable in illustrator from the original location they
-% were saved to. 
-
-% Description of edits (include date & author):
-% Added difference image save and 3D display (2/22/22, Joe Carroll), v1
-% Updated for Iniya (11/4/2022, Jenna Grieshop), v2
-    % This edit is to be used with only 2 matrices at a time. They do not
-    % need to be the same dimensions. The CDCs between the two matrices
-    % are matched up and then the smaller matrix is padded appropriately
-    % be the same size as the larger one. Do the subtraction, and then shave
-    % the padding off. The results are the size of the smaller
-    % matrix. The LUT table currently must only have the two matrices
-    % information that you are trying to compare in rows 2 and 3 of the csv
-    % file.
-
-    % input smaller matrix first - will do large minus small
+% Date of creation: 2/22/22
+%
+% Description: Script that performs subtraction between two density
+% matricies. They do not need to be the same size but they do need to be
+% scaled to one another. 
+%
+% Input: Smaller matrix first, then larger matrix, then LUT file
+% (PCD_CDC_Alalysis_Summary with only the information of the matrices being
+% used & in the same order as selected).
+%
+% Output: csv, SVG, and tif of the resulting subtraction matrix. Note that
+% svgs may only be readable in the original location they were saved to.
+%
+% Method: CDCs between teh two matrices are aligned and the smaller matrix
+% is padded appropriately to be the same size as the larger one. The
+% subtraction is performed and the excess padding is removed. The resulting
+% matrix is the size of the smaller matrix.
 
 clear all;
 close all;
@@ -34,9 +28,8 @@ clc;
 
 % load in the data
 data{1} = readmatrix(fullfile(pathname1,filename1));
-% data1og = readmatrix(filename1);
 data{2} = readmatrix(fullfile(pathname2,filename2));
-% data2og = readmatrix(filename2);
+
 
 % select and load in filename of the LUT with CDC
 [LUTfilename, LUTpathname] = uigetfile('*.csv', 'Select file with CDC coords');
@@ -44,38 +37,16 @@ data{2} = readmatrix(fullfile(pathname2,filename2));
 % load in the LUT file
 LUT = readtable(fullfile(LUTpathname, LUTfilename));
 
-% % get scales (0.5 is the common scaling factor)
-% scale1 = LUT{1,10}/0.5;
-% scale2 = LUT{2,10}/0.5;
-
 % figure out the sizes of the matricies
 sz{1} = size(data{1},1);
-% size1og = size(data{1},1);
 sz{2} = size(data{2},1);
-% size2og = size(data{2},1);
-
-% % scale images
-% sz{2} = ceil(sz{2} * scale2); % new size in px
-% data{2} = imresize(data{2}, scale2);
-% 
-% sz{1} = ceil(sz{1} * scale1); 
-% data{1} = imresize(data{1}, scale1);
 
 % get CDC coords out of table
-x{1} = LUT{1,8}; % original CDC
-% x1og = LUT{1,8};
+x{1} = LUT{1,8}; 
 x{2} = LUT{2,8};
-% x2og = LUT{2,8};
 y{1} = LUT{1,9};
-% y1og = LUT{1,9};
 y{2} = LUT{2,9};
-% y2og = LUT{2,9};
 
-% x{2} = round(x{2} * scale2); % multiplying original x coord by ratio of the orignal scale to the new scale
-% y{2} = round(y{2} * scale2);
-% 
-% x{1} = round(x{1} * scale1);
-% y{1} = round(y{1} * scale1);
 
 % get the orignal coordinates for the corners of the second matrix
 l2 = size(data{2});
@@ -90,7 +61,7 @@ tl2a = tl2-[x{2},y{2}];
 tr2a = tr2-[x{2},y{2}];
 bl2a = bl2-[x{2},y{2}];
 br2a = br2-[x{2},y{2}];
-%subtract from cdc coords too?
+%subtract from cdc coords too
 x{2} = x{2} - x{2}+1;
 y{2} = y{2} - y{2}+1;
 
@@ -108,7 +79,7 @@ tl1a = tl1-[x{1},y{1}];
 tr1a = tr1-[x{1},y{1}];
 bl1a = bl1-[x{1},y{1}];
 br1a = br1-[x{1},y{1}];
-%subtract from cdc coords too?
+%subtract from cdc coords too
 x{1} = x{1} - x{1}+1;
 y{1} = y{1} - y{1}+1;
 
@@ -143,7 +114,7 @@ x{1} = x{1} + offset(1);
 y{1} = y{1} + offset(2);
 
 
-% determine which is the larger matrix after scaling
+% determine which is the larger matrix
 if sz{2} > sz{1}
     larger = 2;
     smaller = 1;
@@ -183,37 +154,37 @@ data{smaller} = paddedData;
 % subtract, but check equaland provide error message to user
 if size(data{1}) == size(data{2})
 
-% perform subtraction
-resultMatrix = data{larger} - data{smaller};
-resultMatrix = resultMatrix(:,~all(isnan(resultMatrix))); % get rid of columns with only nans
-resultMatrix = resultMatrix(~all(isnan(resultMatrix),2), :); % get rid of row with only nans
-
-% remove extension from name
-[folder1, baseName1, extension1] = fileparts(filename1);
-[folder2, baseName2, extension2] = fileparts(filename2);
-
-% save averaged matrix
-n1 = split(baseName1, '_0p');
-n2 = split(baseName2, '_0p');
-filename = [n1{1} '_MINUS_' n2{1} '_' date];
-csvwrite(fullfile(LUTpathname, [filename '.csv']),resultMatrix);
-
-% save difference image
-imwrite(resultMatrix, parula(256),fullfile(LUTpathname, [filename '.tif']));
-
-% %display difference map asa 3D plot
-vis = mesh(resultMatrix);
-view(0,90);
-set(gca, 'Visible', 'on')
-f = gcf;
-exportgraphics(f,[filename '2.tif'],'Resolution',300)
-
-% save as svg for figure making
-matrix = resultMatrix;
-f = figure('visible', 'off');
-colormap(parula);
-image(matrix, 'CDataMapping', 'scaled');
-print(f, '-dsvg', fullfile(LUTpathname, [filename '.svg']));
+    % perform subtraction
+    resultMatrix = data{larger} - data{smaller};
+    resultMatrix = resultMatrix(:,~all(isnan(resultMatrix))); % get rid of columns with only nans
+    resultMatrix = resultMatrix(~all(isnan(resultMatrix),2), :); % get rid of row with only nans
+    
+    % remove extension from name
+    [folder1, baseName1, extension1] = fileparts(filename1);
+    [folder2, baseName2, extension2] = fileparts(filename2);
+    
+    % save averaged matrix
+    n1 = split(baseName1, '_0p');
+    n2 = split(baseName2, '_0p');
+    filename = [n1{1} '_MINUS_' n2{1} '_' date];
+    csvwrite(fullfile(LUTpathname, [filename '.csv']),resultMatrix);
+    
+    % save difference image
+    imwrite(resultMatrix, parula(256),fullfile(LUTpathname, [filename '.tif']));
+    
+    % display difference map asa 3D plot
+    vis = mesh(resultMatrix);
+    view(0,90);
+    set(gca, 'Visible', 'on')
+    f = gcf;
+    exportgraphics(f,[filename '2.tif'],'Resolution',300)
+    
+    % save as svg for figure making
+    matrix = resultMatrix;
+    f = figure('visible', 'off');
+    colormap(parula);
+    image(matrix, 'CDataMapping', 'scaled');
+    print(f, '-dsvg', fullfile(LUTpathname, [filename '.svg']));
 
 
 else
