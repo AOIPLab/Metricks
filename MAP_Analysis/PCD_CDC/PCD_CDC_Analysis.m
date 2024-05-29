@@ -18,7 +18,7 @@ clear all
 close all
 clc
 
-% Add our support library to the path.
+
 basePath = which('PCD_CDC_Analysis.m');
 [basePath] = fileparts(basePath);
 path(path,fullfile(basePath,'lib')); 
@@ -39,6 +39,17 @@ list = {'95', '90', '85', '80', '75', '70', '65', '60', '55', '50', '45', '40', 
 if tf == 1
     thresholdPercentile = str2num(list{indx})/100;
     threshStr = list{indx};
+else
+    % Canceled dialog box - end the program
+    return
+end
+
+
+% Unit selection by the user
+list2 = {'Microns', 'Degrees'};
+[indx2, tf2] = listdlg('PromptString', 'Select the desired units.', 'SelectionMode', 'single', 'ListString', list2);
+if tf2 == 1
+    unitStr = list2{indx2};
 else
     % Canceled dialog box - end the program
     return
@@ -83,7 +94,14 @@ for i=1:size(fnameList,1) % Go through all files in list
 
                 micronsPerDegree = (291*axialLength)/24; % These numbers are from a book in Joe's office, Joe has confirmed it is correct
                 
-                scaleVal = 1 / (pixelsPerDegree / micronsPerDegree);
+                if unitStr == "Microns"
+                    % scale for microns
+                    scaleVal = 1 / (pixelsPerDegree / micronsPerDegree);
+                else
+                    % scale for degrees
+                    scaleVal = 1/pixelsPerDegree;  % From Rob's code
+                end
+
             else
                 scaleVal = scaleInput;
     end
@@ -112,7 +130,8 @@ for i=1:size(fnameList,1) % Go through all files in list
     
     % Added for area
     pxareaAboveThresh = sum(sum(threshold == 1)); %Area in total pixels above % threshold using matrix
-    umareaAboveThresh = (pxareaAboveThresh*(scaleVal^2)); %Area in um2 above % threshold using matrix
+    unitareaAboveThresh = (pxareaAboveThresh*(scaleVal^2)); %Area in unit^2 above % threshold using matrix
+
     
     % Added for ellipse
     [yThresh, xThresh] = find(contour);  % x and y are column vectors.
@@ -162,9 +181,9 @@ for i=1:size(fnameList,1) % Go through all files in list
     densityatCDC = densityMap(ellipsefitThresh.Y0_rnd, ellipsefitThresh.X0_rnd);
     
     if (i == 1)
-        data = [peak, centroidX, centroidY, pxareaAboveThresh, umareaAboveThresh, densityatCDC, ellipsefitThresh.X0_rnd, ellipsefitThresh.Y0_rnd, scaleVal];
+        data = [peak, centroidX, centroidY, pxareaAboveThresh, unitareaAboveThresh, densityatCDC, ellipsefitThresh.X0_rnd, ellipsefitThresh.Y0_rnd, scaleVal];
     else
-        data = [data; peak, centroidX, centroidY,pxareaAboveThresh, umareaAboveThresh, densityatCDC, ellipsefitThresh.X0_rnd, ellipsefitThresh.Y0_rnd, scaleVal];
+        data = [data; peak, centroidX, centroidY,pxareaAboveThresh, unitareaAboveThresh, densityatCDC, ellipsefitThresh.X0_rnd, ellipsefitThresh.Y0_rnd, scaleVal];
     end
     
 % Adding an output image with the marked location of peak density, added by Joe Carroll 2/19/22
@@ -181,7 +200,7 @@ end
 
 % Write summary data to file
 data = num2cell(data);
-header = {'File Name', 'Peak', 'Centroid(max)_x', 'Centroid(max)_y',['PixelAreaAbove_0.' threshStr], ['um2AreaAbove_0.' threshStr], 'Density at CDC', 'EliCenter_0.8_x', 'EliCenter_0.8_y', 'um_per_pixel'};
+header = {'File Name', 'Peak', 'Centroid(max)_x', 'Centroid(max)_y',['PixelAreaAbove_0.' threshStr], [unitStr '_AreaAbove_0.' threshStr], 'Density at CDC', 'EliCenter_0.8_x', 'EliCenter_0.8_y', [unitStr '_per_pixel']};
 EllipseCenterCoords = cat(2,fnameList, data);
 EllipseCenterCoords = cat(1, header, EllipseCenterCoords);
 writecell(EllipseCenterCoords, fullfile(dataPath, ['PCD_CDC_Analysis_Summary_', datestr(now, 'dd_mmm_yyyy'), '.csv']));
