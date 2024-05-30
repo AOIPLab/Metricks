@@ -31,10 +31,6 @@ dataDir = dir(dataPath);
 dataDir = struct2cell(dataDir)';
 addpath(genpath(dataPath));
 
-% Make output folder
-impath = fullfile(dataPath,'Matlab_Outputs');
-mkdir(impath);
-
 % Looks for the Batch Info spreadsheet that contains the ID initial, ID #, eye, axial length, and device #:
 batchDir = dataDir(...
     ~cellfun(@isempty, strfind(dataDir(:,1), 'LUT')),:);
