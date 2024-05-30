@@ -238,7 +238,7 @@ for i=1:size(file_paths_raw,1)
 
 %% format output and save to file
     % horizontal
-    output_fname_h = strcat(master_cdc{i,1}, '_Horizontal_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+    output_fname_h = strcat(num2str(master_cdc{i,1}), '_Horizontal_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
 
     % setting up for table creation
     BinCenter_h = num2cell(bin_centers_h');
@@ -253,7 +253,7 @@ for i=1:size(file_paths_raw,1)
 
 
     % vertical
-    output_fname_v = strcat(master_cdc{i,1}, '_Vertical_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+    output_fname_v = strcat(num2str(master_cdc{i,1}), '_Vertical_Bin_Analysis_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
 
     % setting up for table creation
     BinCenter_v = num2cell(bin_centers_v');
@@ -407,6 +407,13 @@ ylabel("Result");
 output_fname_vert_graph = strcat('Vertical_Graph_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.svg');
 print(g, '-dsvg', fullfile(pathname_cdc,output_fname_vert_graph));
 
+% save horz and vert graph info
+output_fname_hv_info = strcat('HV_graph_info_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '.csv');
+final_header = {'horz bins', 'horz values', 'horz stdev', 'vert bins', 'vert values', 'vert stdev'};
+final_res = [x_h_bin, avg_h_bin, stdev_h_bin', x_v_bin, avg_v_bin, stdev_v_bin'];
+final_output = cat(1, final_header, num2cell(final_res));
+
+writecell(final_output, fullfile(pathname_cdc,output_fname_hv_info));
 
 
 
