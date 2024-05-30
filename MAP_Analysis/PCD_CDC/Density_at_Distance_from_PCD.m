@@ -1,15 +1,19 @@
-% Finds density at a specific distance away from the PCD in a density
-% matrix. User enters the x and y distance in um (microns) from the PCD. 
-% Negative distances are to the left and up.
+% Density at Distance from PCD
+%
+% Created by: Jenna Grieshop
+% Date created: 11/22/23
+%
+% Description: Finds density at a specific distance away from the PCD in a 
+% density matrix. User enters the x and y distance in um (microns) from the 
+% PCD. Negative distances are to the left and up.
+%
+% Input: Denisty matrices in the folder the code is running from, a LUT file
+% (file name, axial length, and ppd) (LUT file can be in the same folder as
+% the data or in a different folder), user input about distance in x and y 
+% from the PCD
+%
+% Output: .csv saved to folder containing the LUT file.
 
-% Inputs: Denisty matrices in the folder the code is running from, a LUT file
-% (file name, axial length, and ppd) in a separate folder, user input about
-% distance in x and y from the PCD
-
-% Outputs: .csv saved to folder containing the LUT file.
-
-% Created by Jenna Grieshop 11/22/23 - most code was recycled from
-% PCD_CDC_Analysis.m code.
 
 
 clear all
@@ -20,104 +24,119 @@ basepath = which('Density_at_Distance_from_PCD.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
-[fnamelist] = read_folder_contents(basepath,'csv');
-[scalingfname, scalingpath] = uigetfile(fullfile(basepath,'*.csv'),'Select scaling LUT.');
 
+% User selects folder with data
+dataPath = uigetdir('.','Select directory containing analyses');
 
-scaleinput = NaN;
-if scalingfname == 0        
+% Read in csv names and then have user select the LUT
+[fnameList] = read_folder_contents(dataPath,'csv');
+[scalingFname, scalingPath] = uigetfile(fullfile(dataPath,'*.csv'),'Select scaling LUT.');
+
+% Remove LUT file from fnameList
+fnameList(ismember(fnameList,scalingFname))=[];
+
+% If LUT wasn't selected the user has the chance to enter the scale
+% manually
+scaleInput = NaN;
+if scalingFname == 0        
     
-    while isnan(scaleinput)                
+    while isnan(scaleInput)                
         
-        scaleinput = inputdlg('Input the scale in UNITS/PIXEL:','Input the scale in UNITS/PIXEL:');
+        scaleInput = inputdlg('Input the scale in UNITS/PIXEL:','Input the scale in UNITS/PIXEL:');
         
-        scaleinput = str2double(scaleinput);
+        scaleInput = str2double(scaleInput);
         
-        if isempty(scaleinput)
+        if isempty(scaleInput)
             error('Cancelled by user.');
         end
     end
 else
-    [~, lutData] = load_scaling_file(fullfile(scalingpath,scalingfname));
+    [~, lutData] = load_scaling_file(fullfile(scalingPath,scalingFname));
 end
 
-x_input = NaN;
-while isnan(x_input)
+% prompts user to enter x distance from PCD
+xInput = NaN;
+while isnan(xInput)
 
-    x_input = inputdlg('Input the X distance from the PCD in um:', 'Input the X distance from the PCD in um:');
+    xInput = inputdlg('Input the X distance from the PCD in um:', 'Input the X distance from the PCD in um:');
     
-    x_input = str2double(x_input);
+    xInput = str2double(xInput);
 
-    if isempty(x_input)
+    if isempty(xInput)
             error('X input Cancelled by user.');
     end
 end
 
-y_input = NaN;
-while isnan(y_input)
+% prompts user to enter y distance from PCD
+yInput = NaN;
+while isnan(yInput)
     
-    y_input = inputdlg('Input the Y distance from the PCD in um:', 'Input the Y distance from the PCD in um:');
+    yInput = inputdlg('Input the Y distance from the PCD in um:', 'Input the Y distance from the PCD in um:');
     
-    y_input = str2double(y_input);
-    if isempty(y_input)
+    yInput = str2double(yInput);
+    if isempty(yInput)
             error('Y input cancelled by user.');
     end
 end
 
 
 count = 1;
-
-for i=1:size(fnamelist,1)
+for i=1:size(fnameList,1) % Go through all files in list 
     
-     if isnan(scaleinput)
+     if isnan(scaleInput)
                 % Calculate the scale for this identifier.                                
-                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) );
+                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnameList{i},s )), lutData{1} ) );
 
                 % Use whichever scale is most similar to our filename.
                 sim = 1000*ones(length(LUTindex),1);
                 for l=1:length(LUTindex)
-                    sim(l) = lev(fnamelist{i}, lutData{1}{LUTindex(l)});
+                    sim(l) = lev(fnameList{i}, lutData{1}{LUTindex(l)});
                 end
                 [~,simind]=min(sim);
                 LUTindex = LUTindex(simind);
                 
-                axiallength = lutData{2}(LUTindex);
-                pixelsperdegree = lutData{3}(LUTindex);
+                % get information from LUT file
+                axialLength = lutData{2}(LUTindex);
+                pixelsPerDegree = lutData{3}(LUTindex);
 
-                micronsperdegree = (291*axiallength)/24;
+                % calculate microns per degree
+                micronsPerDegree = (291*axialLength)/24;
                 
-                scaleval = 1 / (pixelsperdegree / micronsperdegree); %pixels/um
+                % get the scale value
+                scaleVal = 1 / (pixelsPerDegree / micronsPerDegree); %pixels/um
             else
-                scaleval = scaleinput;
+                scaleVal = scaleinput;
     end
 
     
-    densitymap = csvread(fnamelist{i});
-    peak = max(densitymap(:));
-    
-    [maxval, maxind] = max(densitymap(:));
+    % Load in the density map and find the max value (peak)
+    densityMap = csvread(fullfile(dataPath,fnameList{i}));
+    peak = max(densityMap(:));
 
-    % check that the max value is unique
-    max_indices = find(densitymap == maxval);           
-    [max_y_coords, max_x_coords] = find(densitymap == maxval);
-    all_max_coords = [max_x_coords, max_y_coords];
-    for j = 1:length(max_x_coords)
-        all_maxes{count,1} = {fnamelist{i}, all_max_coords(j,1), all_max_coords(j,2)};
+    % Check that the max value/peak is unique         
+    [maxYCoords, maxXCoords] = find(densityMap == peak);
+    allMaxCoords = [maxXCoords, maxYCoords];
+    for j = 1:length(maxXCoords)
+        allMaxes{count,1} = {fnameList{i}, allMaxCoords(j,1), allMaxCoords(j,2)}; % store all maxes
         count = count +1;
     end
 
-    % finding the weighted (mean) centoid if multiple max locations found
-    centroid_x = mean(max_x_coords);
-    centroid_y = mean(max_y_coords);
+    % Finding the weighted (mean) centoid if multiple max locations found
+    centroidX = mean(maxXCoords);
+    centroidY = mean(maxYCoords);
 
-    x_dist = round(x_input * scaleval);
-    y_dist = round(y_input * scaleval);
+    % Finds the distance in pixels
+    xDist = round(xInput * scaleVal);
+    yDist = round(yInput * scaleVal);
 
-    new_x = centroid_x + x_dist;
-    new_y = centroid_y + y_dist;
+    % Get the location that we need to get the density value from
+    newX = centroidX + xDist;
+    newY = centroidY + yDist;
 
-    d_at_point = densitymap(new_y, new_x) % x and y appear flipped bc of row and column rules in matlab
+    % Get the density at the point
+    d_at_point = densityMap(newY, newX); % x and y appear flipped bc of row and column rules in matlab
     
+    % Compile data for file
     if (i ==1)
         data = [d_at_point];
     else
@@ -127,9 +146,10 @@ for i=1:size(fnamelist,1)
 
 end
 
+% Write the output csv
 data = num2cell(data);
 header = {'File Name', 'Density at Point'};
-compiled = cat(2, fnamelist, data);
+compiled = cat(2, fnameList, data);
 compiled2 = cat(1, header, compiled);
-writecell(compiled2, fullfile(scalingpath, ['Density_at_point_', num2str(x_input), 'um_', num2str(y_input), 'um_from_PCD_', datestr(now, 'dd-mmm-yyyy'), '.csv']))
+writecell(compiled2, fullfile(dataPath, ['Density_at_point_', num2str(xInput), 'um_', num2str(yInput), 'um_from_PCD_', datestr(now, 'dd_mmm_yyyy'), '.csv']))
 
