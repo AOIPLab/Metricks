@@ -5,7 +5,7 @@ close all
 clc
 
 
-basePath = which('coordinate_scale_script.m');
+basePath = which('Coordinate_Scaling.m');
 [basePath] = fileparts(basePath);
 path(path,fullfile(basePath,'lib')); 
 
