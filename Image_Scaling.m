@@ -1,4 +1,18 @@
-% Script to scale tifs, currently hard coded to scale we want
+% Author: Jenna Grieshop
+% Date of creation: 7/3/2024
+%
+% Description: Script that scales Foveal ROI to a set scale (hard codded
+% currently to be 1240x1240 for 300um or 2066x2066 for 500um)
+%
+% Input: Folder containing foveal ROI images, image name must be in either
+% of these formats:
+% JC_XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc.tif
+% or XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc.tif
+%
+% Output: scaled .tifs with new scales embedded in the file names with
+% _scaled appended at end of name, csv that is the LUT file to use for the 
+% coordinate_scaling.m script
+
 
 clear all
 close all
