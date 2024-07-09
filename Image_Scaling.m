@@ -29,7 +29,7 @@ dataPath = uigetdir('.','Select directory containing original images');
 %User selects results folder
 resultPath = uigetdir('.','Select directory to save scaled images in');
 
-% Read in csv names
+% Read in tif names
 [fnameList] = read_folder_contents(dataPath,'tif');
 
 
