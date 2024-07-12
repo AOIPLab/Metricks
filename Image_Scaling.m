@@ -44,6 +44,7 @@ for i=1:size(fnameList,1)
         roi_size = str2double(roi_size{1});
         file_desc = [spl{1} "_" spl{2} "_" spl{3} "_" spl{4}];
         file_desc = strrep(strjoin(file_desc), ' ' , '');
+        spl{9} = strrep(spl{9}, '.tif', '');
         % else to account for other naming conventions other than AOIP
         % Beware of AOIP data that starts with initials other than JC, will
         % need to update if above
@@ -56,8 +57,9 @@ for i=1:size(fnameList,1)
         roi_size = str2double(roi_size{1});
         file_desc = [spl{1} "_" spl{2} "_" spl{3}];
         file_desc = strrep(strjoin(file_desc), ' ' , '');
+        spl{8} = strrep(spl{8}, '.tif', '');
     end
-    spl{9} = strrep(spl{9}, '.tif', '');
+    
 
     if roi_size == 300
         new_dim = 1240;
@@ -92,7 +94,7 @@ for i=1:size(fnameList,1)
     if spl{1} == "JC"
         new_name = [spl{1}, "_" spl{2} "_" spl{3} "_" spl{4} "_" str_mpp "mpp_" str_ppd "ppd_" spl{7} "_" spl{8} "_" spl{9} "_scaled.tif"];
     else
-        new_name = [spl{1}, "_" spl{2} "_" spl{3} "_" spl{4} "_" str_mpp "mpp_" str_ppd "ppd_" spl{7} "_" spl{8} "_scaled.tif"];
+        new_name = [spl{1}, "_" spl{2} "_" spl{3} "_" str_mpp "mpp_" str_ppd "ppd_" spl{6} "_" spl{7} "_" spl{8} "_scaled.tif"];
     end
     new_name = strjoin(new_name);
     new_name = strrep(new_name,' ','');

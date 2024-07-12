@@ -79,10 +79,17 @@ for i=1:size(fnameList,1) % Go through all files in list
 
     % create new file name
     parts = split(fnameList{i}, "_");
+
+    if parts{1} == "JC"
     
-    new_name = [parts{1}, "_" parts{2} "_" parts{3} "_" parts{4} "_" new_mpp "mpp_" new_ppd "ppd_" parts{7} "_" parts{8} "_" parts{9} "_scaled_" parts{10}];
-    new_name = strjoin(new_name);
-    new_name = strrep(new_name,' ','');
+        new_name = [parts{1}, "_" parts{2} "_" parts{3} "_" parts{4} "_" new_mpp "mpp_" new_ppd "ppd_" parts{7} "_" parts{8} "_" parts{9} "_scaled_" parts{10}];
+        new_name = strjoin(new_name);
+        new_name = strrep(new_name,' ','');
+    else
+        new_name = [parts{1}, "_" parts{2} "_" parts{3} "_" new_mpp "mpp_" new_ppd "ppd_" parts{6} "_" parts{7} "_" parts{8} "_scaled_" parts{9}];
+        new_name = strjoin(new_name);
+        new_name = strrep(new_name,' ','');
+    end
 
     writecell(num2cell(new_coords), fullfile(resultPath, new_name) )
 
