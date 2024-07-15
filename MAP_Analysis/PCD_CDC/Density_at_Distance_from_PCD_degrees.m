@@ -107,10 +107,14 @@ for i=1:size(fnameList,1) % Go through all files in list
     densityMap = csvread(fullfile(dataPath,fnameList{i}));
     if contains(fnameList{i}, 'OS')
         densityMap = fliplr(densityMap);
+        PCD_x = length(densityMap)-(PCD_x-1);
     end
 
     % All for OD orientation
-    if Direction == 'Temporal'
+    if Direction == 'Nasal'
+        xDist = round(DegreeInput * pixelsPerDegree);
+        yDist = 0;
+    elseif Direction == 'Temporal'
         xDist = -round(DegreeInput * pixelsPerDegree);
         yDist = 0;
     elseif Direction == 'Superior'
@@ -119,9 +123,6 @@ for i=1:size(fnameList,1) % Go through all files in list
     elseif Direction == 'Inferior'
         xDist = 0;
         yDist = -round(DegreeInput * pixelsPerDegree);
-    elseif Direction == 'Nasal'
-        xDist = round(DegreeInput * pixelsPerDegree);
-        yDist = 0;
     else
         error('No valid direction.');
     end
