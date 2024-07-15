@@ -111,16 +111,16 @@ for i=1:size(fnameList,1) % Go through all files in list
     end
 
     % All for OD orientation
-    if Direction == 'Nasal'
+    if strcmp(Direction,'Nasal')
         xDist = round(DegreeInput * pixelsPerDegree);
         yDist = 0;
-    elseif Direction == 'Temporal'
+    elseif strcmp(Direction,'Temporal')
         xDist = -round(DegreeInput * pixelsPerDegree);
         yDist = 0;
-    elseif Direction == 'Superior'
+    elseif strcmp(Direction,'Superior')
         xDist = 0;
         yDist = round(DegreeInput * pixelsPerDegree);
-    elseif Direction == 'Inferior'
+    elseif strcmp(Direction,'Inferior')
         xDist = 0;
         yDist = -round(DegreeInput * pixelsPerDegree);
     else
@@ -149,7 +149,7 @@ data = num2cell(data);
 header = {'File Name', 'Density at Point'};
 compiled = cat(2, fnameList, data);
 compiled2 = cat(1, header, compiled);
-writecell(compiled2, fullfile(dataPath, ['Density_at_point_', num2str(DegreeInput), 'deg_', num2str(Direction), 'um_from_PCD_', datestr(now, 'dd_mmm_yyyy'), '.csv']))
+writecell(compiled2, fullfile(dataPath, ['Density_at_point_', num2str(DegreeInput), 'deg_', num2str(Direction), '_from_PCD_', datestr(now, 'dd_mmm_yyyy'), '.csv']))
 
 
 
