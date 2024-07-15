@@ -133,7 +133,7 @@ for i=1:size(fnameList,1) % Go through all files in list
 
     % Get the density at the point
     % if the new point is negative it does not exist
-    if newX < 0 || newY <0 
+    if (newX < 0 || newY <0) || (newX > length(densityMap) || newY > length(densityMap)) 
         d_at_point = NaN;
     else
         d_at_point = densityMap(newY, newX); % x and y appear flipped bc of row and column rules in matlab
