@@ -132,8 +132,13 @@ for i=1:size(fnameList,1) % Go through all files in list
     newY = PCD_y + yDist;
 
     % Get the density at the point
-    d_at_point = densityMap(newY, newX); % x and y appear flipped bc of row and column rules in matlab
-    
+    % if the new point is negative it does not exist
+    if newX < 0 || newY <0 
+        d_at_point = NaN;
+    else
+        d_at_point = densityMap(newY, newX); % x and y appear flipped bc of row and column rules in matlab
+    end
+
     % Compile data for file
     if (i ==1)
         data = [d_at_point];
