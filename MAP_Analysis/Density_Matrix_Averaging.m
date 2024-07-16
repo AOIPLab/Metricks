@@ -183,8 +183,8 @@ end
     clims2 = [5000 45000];
 
     %average
-    average_all = average_all(:,~all(isnan(average_all))); % get rid of columns with only nans
-    average_all = average_all(~all(isnan(average_all),2), :); % get rid of row with only nans
+    % average_all = average_all(:,~all(isnan(average_all))); % get rid of columns with only nans
+    % average_all = average_all(~all(isnan(average_all),2), :); % get rid of row with only nans
     average = average(:,~all(isnan(average))); % get rid of columns with only nans
     average = average(~all(isnan(average),2), :); % get rid of row with only nans
     average50 = average50(:,~all(isnan(average50))); % get rid of columns with only nans
@@ -198,8 +198,8 @@ end
     % average(any(isnan(average), 1), :) = [];
 
     %standard deviation
-    standard_dev_all = standard_dev_all(:,~all(isnan(standard_dev_all))); % get rid of columns with only nans
-    standard_dev_all = standard_dev_all(~all(isnan(standard_dev_all),2), :); % get rid of row with only nans
+    % standard_dev_all = standard_dev_all(:,~all(isnan(standard_dev_all))); % get rid of columns with only nans
+    % standard_dev_all = standard_dev_all(~all(isnan(standard_dev_all),2), :); % get rid of row with only nans
     standard_dev = standard_dev(:,~all(isnan(standard_dev))); % get rid of columns with only nans
     standard_dev = standard_dev(~all(isnan(standard_dev),2), :); % get rid of row with only nans
     standard_dev50 = standard_dev50(:,~all(isnan(standard_dev50))); % get rid of columns with only nans
@@ -330,5 +330,6 @@ end
     writematrix(standard_dev,  fullfile(LUTpathname,['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
     writematrix(standard_dev50,  fullfile(LUTpathname,['Stdev_50_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
     writematrix(NanCount, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
-
+    writecell([CDC_x(1), CDC_y(1)], fullfile(LUTpathname,['CDC_' datestr(now, 'yyyymmdd') '.csv']));
+   
 
