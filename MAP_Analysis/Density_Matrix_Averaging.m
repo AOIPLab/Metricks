@@ -150,36 +150,185 @@ for j=1:numFiles
     A(:,:,j) = data{j};
 
 end
+    
+    
+    A50 = A;
+    % figure out how many maps contributed to each location
+    NanCount = NaN(size(A,1),size(A,2));
+    dim = size(A,3);
+    for m=1:size(A,1)
+        for n = 1:size(A,2)
+            NanCount(m,n) = dim - sum(isnan(A(m,n,:)));
+            if NanCount(m,n) < 30
+                % if less than 50 get rid of the spot for the 50 map one
+                A50(m,n,:) = NaN;
+            end
+        end
+    end
 
+%%
     % get the average of the stacked maps
-    average = mean(A,3);
+    average_all = mean(A,3, "omitnan");
+    standard_dev_all = std(A, [], 3, "omitmissing");
 
-    csvwrite(fullfile(LUTpathname, ['Averaged_bound_density_matirx_' datestr(now, 'yyyymmdd') '.csv']),average);
+    average = mean(A,3);
+    standard_dev = std(A, [], 3);
+
+    average50 = mean(A50,3, "omitnan");
+    standard_dev50 = std(A50, [], 3, "omitmissing");
+
+    % writematrix(average_all,fullfile(LUTpathname, ['Averaged_bound_density_map_wNans' datestr(now, 'yyyymmdd') '.csv']));
 
     clims = [50000 225000]; % added to set limits of color scale
+    clims2 = [5000 45000];
 
+    %average
+    average_all = average_all(:,~all(isnan(average_all))); % get rid of columns with only nans
+    average_all = average_all(~all(isnan(average_all),2), :); % get rid of row with only nans
     average = average(:,~all(isnan(average))); % get rid of columns with only nans
     average = average(~all(isnan(average),2), :); % get rid of row with only nans
+    average50 = average50(:,~all(isnan(average50))); % get rid of columns with only nans
+    average50 = average50(~all(isnan(average50),2), :); % get rid of row with only nans
+    % get rid of any NaNs
+    average50(any(isnan(average50), 2), :) = [];
+    average50(any(isnan(average50), 1), :) = [];
+    % average_all(any(isnan(average_all), 2), :) = [];
+    % average_all(any(isnan(average_all), 1), :) = [];
+    % average(any(isnan(average), 2), :) = [];
+    % average(any(isnan(average), 1), :) = [];
+
+    %standard deviation
+    standard_dev_all = standard_dev_all(:,~all(isnan(standard_dev_all))); % get rid of columns with only nans
+    standard_dev_all = standard_dev_all(~all(isnan(standard_dev_all),2), :); % get rid of row with only nans
+    standard_dev = standard_dev(:,~all(isnan(standard_dev))); % get rid of columns with only nans
+    standard_dev = standard_dev(~all(isnan(standard_dev),2), :); % get rid of row with only nans
+    standard_dev50 = standard_dev50(:,~all(isnan(standard_dev50))); % get rid of columns with only nans
+    standard_dev50 = standard_dev50(~all(isnan(standard_dev50),2), :); % get rid of row with only nans
+    % get rid of any NaNs
+    standard_dev50(any(isnan(standard_dev50), 2), :) = [];
+    standard_dev50(any(isnan(standard_dev50), 1), :) = [];
+    % standard_dev_all(any(isnan(standard_dev_all), 2), :) = [];
+    % standard_dev_all(any(isnan(standard_dev_all), 1), :) = [];
+    % standard_dev(any(isnan(standard_dev), 2), :) = [];
+    % standard_dev(any(isnan(standard_dev), 1), :) = [];
 
     vmap=viridis; %calls viridis colormap function
 
-    % display the standard deviation map
+    % display average of everything map
     dispfig=figure(1); 
+    imagesc(average_all,clims); % added to use limits of color scale
+    axis image;
+    colormap(vmap); 
+    colorbar; 
+
+    saveas(gcf,fullfile(LUTpathname, ['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+    % display average of just overlapping map
+    dispfig=figure(2); 
     imagesc(average,clims); % added to use limits of color scale
     axis image;
     colormap(vmap); 
     colorbar; 
 
-    saveas(gcf,fullfile(LUTpathname, ['Averaged_bound_density_matirx_' datestr(now, 'yyyymmdd') '_fig.png']));
+    saveas(gcf,fullfile(LUTpathname, ['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+    % display average of overlapping 50 subjects
+    dispfig=figure(3); 
+    imagesc(average50,clims); % added to use limits of color scale
+    axis image;
+    colormap(vmap); 
+    colorbar; 
+
+    saveas(gcf,fullfile(LUTpathname, ['Averaged_50_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+
+    % display stdev of everything map
+    dispfig=figure(4); 
+    imagesc(standard_dev_all,clims2); % added to use limits of color scale
+    axis image;
+    colormap(vmap); 
+    colorbar; 
+
+    saveas(gcf,fullfile(LUTpathname, ['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+    % display stdev of just overlapping map
+    dispfig=figure(5); 
+    imagesc(standard_dev,clims2); % added to use limits of color scale
+    axis image;
+    colormap(vmap); 
+    colorbar; 
+
+    saveas(gcf,fullfile(LUTpathname, ['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+    % display stdev of just overlapping map
+    dispfig=figure(6); 
+    imagesc(standard_dev50,clims2); % added to use limits of color scale
+    axis image;
+    colormap(vmap); 
+    colorbar; 
+
+    saveas(gcf,fullfile(LUTpathname, ['Stdev_50_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+
+    % display NanCount map
+    dispfig=figure(7); 
+    imagesc(NanCount);
+    axis image;
+    colormap(vmap); 
+    colorbar; 
+
+    saveas(gcf,fullfile(LUTpathname, ['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+    imwrite(NanCount, vmap, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+  
+    % average
+    scaled_map_all = average_all-min(clims);
+    scaled_map_all(scaled_map_all <0) =0; %in case there are min values below this
+    scaled_map_all = uint8(255*scaled_map_all./(max(clims)-min(clims)));
+    scaled_map_all(scaled_map_all  >255) = 255; %in case there are values above this
+    imwrite(scaled_map_all, vmap, fullfile(LUTpathname,['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+
 
     scaled_map = average-min(clims);
     scaled_map(scaled_map <0) =0; %in case there are min values below this
     scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
     scaled_map(scaled_map  >255) = 255; %in case there are values above this
-    imwrite(scaled_map, vmap, fullfile(LUTpathname,['Averaged_bound_density_matirx_' datestr(now, 'yyyymmdd') '_raw.tif'])); %added by Joe Carroll 
+    imwrite(scaled_map, vmap, fullfile(LUTpathname,['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+
+    scaled_map50 = average50-min(clims);
+    scaled_map50(scaled_map50 <0) =0; %in case there are min values below this
+    scaled_map50 = uint8(255*scaled_map50./(max(clims)-min(clims)));
+    scaled_map50(scaled_map50  >255) = 255; %in case there are values above this
+    imwrite(scaled_map50, vmap, fullfile(LUTpathname,['Averaged_50_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
 
 
+    %stdev
+    scaled_map_stdev_all = standard_dev_all-min(clims2);
+    scaled_map_stdev_all(scaled_map_stdev_all <0) =0; %in case there are min values below this
+    scaled_map_stdev_all = uint8(255*scaled_map_stdev_all./(max(clims2)-min(clims2)));
+    scaled_map_stdev_all(scaled_map_stdev_all  >255) = 255; %in case there are values above this
+    imwrite(scaled_map_stdev_all, vmap, fullfile(LUTpathname,['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
 
 
+    scaled_map_stdev = standard_dev-min(clims2);
+    scaled_map_stdev(scaled_map_stdev <0) =0; %in case there are min values below this
+    scaled_map_stdev = uint8(255*scaled_map_stdev./(max(clims2)-min(clims2)));
+    scaled_map_stdev(scaled_map_stdev  >255) = 255; %in case there are values above this
+    imwrite(scaled_map_stdev, vmap, fullfile(LUTpathname,['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+
+    scaled_map_stdev50 = standard_dev50-min(clims2);
+    scaled_map_stdev50(scaled_map_stdev50 <0) =0; %in case there are min values below this
+    scaled_map_stdev50 = uint8(255*scaled_map_stdev50./(max(clims2)-min(clims2)));
+    scaled_map_stdev50(scaled_map_stdev50  >255) = 255; %in case there are values above this
+    imwrite(scaled_map_stdev50, vmap, fullfile(LUTpathname,['Stdev_50_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+
+
+    %save matrices
+    writematrix(average_all, fullfile(LUTpathname,['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+    writematrix(average,  fullfile(LUTpathname,['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+    writematrix(average50,  fullfile(LUTpathname,['Averaged_50_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+    writematrix(standard_dev_all, fullfile(LUTpathname,['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+    writematrix(standard_dev,  fullfile(LUTpathname,['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+    writematrix(standard_dev50,  fullfile(LUTpathname,['Stdev_50_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+    writematrix(NanCount, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 
 
