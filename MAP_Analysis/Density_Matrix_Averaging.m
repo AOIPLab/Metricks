@@ -192,9 +192,11 @@ standard_dev_tot = std(Atotal, [], 3, "omitmissing");
 average_N = mean(AN,3, "omitnan");
 standard_dev_N = std(AN, [], 3, "omitmissing");
 
-% figure out how much to adjust CDC coords for new maps
-% total  
 
+% figure out how much will need to adjust CDC coords for new maps once full
+% NaN rows and columns deleted
+
+% total  
 for q=1:size(average_tot,2)
     if sum(average_tot(:,q), "omitnan") > 0
         break;
@@ -240,60 +242,33 @@ standard_dev_N = standard_dev_N(:,~all(isnan(standard_dev_N)));
 standard_dev_N = standard_dev_N(~all(isnan(standard_dev_N),2), :); 
 
 
-% now here check again and adjust to see if ANY nans are in the columns
+% Figure out the max square area without NaNs for the N matrix
+new_dim = min(CDC_N(1)) - 1;
 
-% figure out how much to adjust CDC coords for new maps
-% total  
-
-N_x = 0;
-N_y = 0;
-N_x_2 = 0;
-N_y_2 = 0;
-
-
-after_data = 0;
-for u=1:size(average_N,2)
-    if ~any(isnan(average_N(:,u)))
-        after_data = 1;
+for j = 1:size(average_N,1)
+    if isnan(average_N(CDC_N(1) - new_dim,j)) || isnan(average_N(CDC_N(1) + new_dim,j)) || isnan(average_N(j,CDC_N(2)- new_dim)) || isnan(average_N(j,CDC_N(2) + new_dim))
+        new_dim = new_dim - 1;
     else
-        if after_data == 0
-            N_x = N_x + 1;
-        else
-            N_x_2 = N_x_2 + 1;
-        end
+        break;
     end
 end
 
-after_data = 0;
-for t=1:size(average_N,1)
-    if ~any(isnan(average_N(t,:)))
-        after_data = 1;
-    else
-        if after_data == 0
-            N_y = N_y + 1;
-        else
-            N_y_2 = N_y_2 + 1;
-        end
-    end
-end
+% adjust the CDC coordinates
+x_diff = CDC_N(1) - new_dim;
+CDC_N(1) = CDC_N(1) - x_diff;
 
-N_x_combined = N_x + N_x_2;
-N_y_combined = N_y + N_y_2;
+y_diff = CDC_N(2) - new_dim;
+CDC_N(2) = CDC_N(2) - y_diff;
 
+% delete the rows and columns that do not fit in the largest square
+average_N(1:y_diff,:) = [];
+average_N(:,1:x_diff) = [];
 
-if N_x_combined > N_y_combined
-    CDC_N(2) = CDC_N(2) - N_y;
-    average_N = rmmissing(average_N,1);   
-    standard_dev_N = rmmissing(standard_dev_N,1);
-else
-    CDC_N(1) = CDC_N(1) - N_x;
-    average_N = rmmissing(average_N,2);   
-    standard_dev_N = rmmissing(standard_dev_N,2);
-    
-end
+average_N((new_dim*2):end,:) = [];
+average_N(:,(new_dim*2):end) = [];
 
-
-clims = [50000 225000]; % added to set limits of color scale
+ % added to set limits of color scale
+clims = [50000 225000];
 clims2 = [5000 45000];
 
 vmap=viridis; %calls viridis colormap function
