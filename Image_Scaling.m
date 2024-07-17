@@ -67,6 +67,9 @@ for i=1:size(fnameList,1)
     elseif roi_size == 500
         new_dim = 2066;
         new_center = 1033;
+    elseif roi_size == 600
+        new_dim = 2480;
+        new_center = 1240;
     end
 
     % Load in image
