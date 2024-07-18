@@ -3,6 +3,9 @@
 % Created by: Jenna Grieshop
 % Date created: 7/12/2024
 %
+
+
+%%% need to save tot items with the number in the total
 %
 
 clear all;
@@ -56,7 +59,7 @@ brao = cell(numFilesDim);
 
 for i=1:numFiles % Go through all files in list 
 
-    % Calculate the scale for this identifier.                                
+    % Find the information from the LUT file for the data                           
     LUTindex=find( cellfun(@(s) ~isempty(strfind(fnameList{i},s )), lutData{1} ) );
     
     CDC_x{i} = lutData{2}(LUTindex);
@@ -267,6 +270,12 @@ average_N(:,1:x_diff) = [];
 average_N((new_dim*2):end,:) = [];
 average_N(:,(new_dim*2):end) = [];
 
+standard_dev_N(1:y_diff,:) = [];
+standard_dev_N(:,1:x_diff) = [];
+
+standard_dev_N((new_dim*2):end,:) = [];
+standard_dev_N(:,(new_dim*2):end) = [];
+
  % added to set limits of color scale
 clims = [50000 225000];
 clims2 = [5000 45000];
@@ -383,10 +392,10 @@ imwrite(scaled_map_stdevN, vmap, fullfile(LUTpathname,['Stdev_' num2str(N) '_bou
 
 %save matrices
 writematrix(average_all, fullfile(LUTpathname,['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
-writematrix(average_tot,  fullfile(LUTpathname,['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+writematrix(average_tot,  fullfile(LUTpathname,['Averaged_' num2str(numFiles) 'bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(average_N,  fullfile(LUTpathname,['Averaged_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(standard_dev_all, fullfile(LUTpathname,['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
-writematrix(standard_dev_tot,  fullfile(LUTpathname,['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+writematrix(standard_dev_tot,  fullfile(LUTpathname,['Stdev_' num2str(numFiles) 'bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(standard_dev_N,  fullfile(LUTpathname,['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(NanCount, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix([CDC_og; CDC_tot; CDC_N], fullfile(LUTpathname,['CDC_' datestr(now, 'yyyymmdd') '.csv']));
