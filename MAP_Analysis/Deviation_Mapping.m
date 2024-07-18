@@ -205,23 +205,23 @@ for m = 1:normNumFiles
         nbottom = abs(brao{maxIy}(2)-brao{1}(2));
     
         npaddedData = normdata{m};
-        stdpaddedData = nstdev;
+        nstdpaddedData = nstdev;
     
         nleftPad = zeros(size(npaddedData,1), nleft);
         npaddedData = horzcat(nleftPad, npaddedData);
-        nstdpaddedData = horzcat(nleftPad, npaddedData);
+        nstdpaddedData = horzcat(nleftPad, nstdpaddedData);
     
         ntopPad = zeros(ntop, size(npaddedData,2));
         npaddedData = vertcat(ntopPad, npaddedData);
-        nstdpaddedData = vertcat(ntopPad, npaddedData);
+        nstdpaddedData = vertcat(ntopPad, nstdpaddedData);
     
         nrightPad = zeros(size(npaddedData,1), nright(1));
         npaddedData = horzcat(npaddedData, nrightPad);
-        nstdpaddedData = horzcat(npaddedData, nrightPad);
+        nstdpaddedData = horzcat(nstdpaddedData, nrightPad);
     
         nbottomPad = zeros(nbottom, size(npaddedData, 2));
         npaddedData = vertcat(npaddedData, nbottomPad);
-        nstdpaddedData = vertcat(npaddedData, nbottomPad);
+        nstdpaddedData = vertcat(nstdpaddedData, nbottomPad);
       
         % change the padded portion to be Nan
         npaddedData(npaddedData==0) = NaN;
@@ -317,17 +317,17 @@ for m = 1:normNumFiles
         nstdev(:,(new_dim*2):end) = [];
 
 
-
-
-        % clims = [0 70000];
-        % vmap=viridis; %calls viridis colormap function
-        % dispfig=figure(count); 
-        % imagesc(standard_dev, clims); % added to use limits of color scale
-        % axis image;
-        % colormap(vmap); 
-        % colorbar; 
+        % JG TODO check that cdc values are still in the right spot
  
         std_comp = round(nstdev./standard_dev);
+
+        for q=1:size(std_comp, 1)
+            for u=1:size(std_comp,1)
+                if std_comp(q,u) > 5
+                    std_comp(q,u) = 5;
+                end
+            end
+        end
 
         vmap=viridis;
         dispfig=figure(count); 
@@ -338,6 +338,9 @@ for m = 1:normNumFiles
 
         count = count + 1;
 
+        saveas(gcf,fullfile(devLUTpathname, ['Stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.png']));
+
+        writematrix(std_comp, fullfile(devLUTpathname,['stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
         
 
 
