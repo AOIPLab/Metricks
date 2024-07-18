@@ -16,7 +16,7 @@ path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
 
 
-% User selects folde with data
+% User selects folder with data
 normDataPath = uigetdir('.','Select directory containing normative maps');
 devDataPath = uigetdir('.','Select directory containing maps to analyze');
 
@@ -258,80 +258,78 @@ for m = 1:normNumFiles
 
         CDC = [nCDC_x, nCDC_y];
 
-        standard_dev = std(A, [], 3, "omitmissing");
+        %get rid of columns that include any NaNs
 
-        standard_dev(standard_dev==0) = NaN;
-        
-        % figure out how much will need to adjust CDC coords for new maps once full
-        % NaN rows and columns deleted
+        for j=1:size(A,1)
+            for g = 1:size(A,2)
+                NanCount = sum(isnan(A(j,g,:)));
+                if NanCount > 0
+                    % if less than N get rid of the spot for the N map one
+                    A(j,g,:) = NaN;
+                    nstdpaddedData(j,g) = NaN;
+                end
+            end
+        end
 
-        for s=1:size(standard_dev,2)
-            if sum(standard_dev(:,s), "omitnan") > 0
+
+        % % figure out how much will need to adjust CDC coords for new maps once full
+        % % NaN rows and columns deleted
+
+        for s=1:size(A,2)
+            if sum(A(:,s,1), "omitnan") > 0
                 break;
             else
                 CDC(1) = CDC(1)- 1;
             end
         end
-        
-        for t=1:size(standard_dev,1)
-            if sum(standard_dev(t,:), "omitnan") > 0
+
+        for t=1:size(A,1)
+            if sum(A(t,:,1), "omitnan") > 0
                 break;
             else
                 CDC(2) = CDC(2)- 1;
             end
         end
 
-        standard_dev = standard_dev(:,~all(isnan(standard_dev))); 
-        standard_dev = standard_dev(~all(isnan(standard_dev),2), :); 
+        B(:,:,1) = A(:,~all(isnan(A(:,:,1)))); 
+        C(:,:,1) = B(~all(isnan(B(:,:,1)),2), :); 
+
+        D(:,:,2) = A(:,~all(isnan(A(:,:,2))),2); 
+        E(:,:,2) = D(~all(isnan(D(:,:,2)),2), :,2); 
+
+        clear A;
+        A(:,:,1) = C(:,:,1);
+        A(:,:,2) =  E(:,:,2);
+
         nstdev = nstdpaddedData(:,~all(isnan(nstdpaddedData))); 
         nstdev = nstdev(~all(isnan(nstdev),2), :); 
 
-        new_dim = min(CDC(1)) - 1;
-        
-        for j = 1:size(standard_dev,1)
-            if isnan(standard_dev(CDC(1) - new_dim,j)) || isnan(standard_dev(CDC(1) + new_dim,j)) || isnan(standard_dev(j,CDC(2)- new_dim)) || isnan(standard_dev(j,CDC(2) + new_dim))
-                new_dim = new_dim - 1;
-            else
-                break;
-            end
-        end
-
-        % adjust the CDC coordinates
-        x_diff = CDC(1) - new_dim;
-        CDC(1) = CDC(1) - x_diff;
-        
-        y_diff = CDC(2) - new_dim;
-        CDC(2) = CDC(2) - y_diff;
-        
-        % delete the rows and columns that do not fit in the largest square
-        standard_dev(1:y_diff,:) = [];
-        standard_dev(:,1:x_diff) = [];
-        
-        standard_dev((new_dim*2):end,:) = [];
-        standard_dev(:,(new_dim*2):end) = [];
-        
-        nstdev(1:y_diff,:) = [];
-        nstdev(:,1:x_diff) = [];
-        
-        nstdev((new_dim*2):end,:) = [];
-        nstdev(:,(new_dim*2):end) = [];
-
-
         % JG TODO check that cdc values are still in the right spot
- 
-        std_comp = round(nstdev./standard_dev);
 
-        for q=1:size(std_comp, 1)
-            for u=1:size(std_comp,1)
-                if std_comp(q,u) > 5
-                    std_comp(q,u) = 5;
+        nstdev_2 = nstdev.*2;
+        p2std = A(:,:,1) + nstdev_2;
+        m2std = A(:,:,1) - nstdev_2;
+
+        p1std = A(:,:,1) + nstdev;
+        m1std = A(:,:,1) - nstdev;
+
+
+        for q=1:size(nstdev_2, 1)
+            for u=1:size(nstdev_2,1)
+                if A(q,u,2) > p2std(q,u) || A(q,u,2) < m2std(q,u)
+                    A(q,u,3) = 2;
+                elseif A(q,u,2) > p1std(q,u) || A(q,u,2) < m1std(q,u)
+                    A(q,u,3) = 1;
+                else
+                     A(q,u,3) = 0;
                 end
             end
         end
 
+
         vmap=viridis;
         dispfig=figure(count); 
-        imagesc(std_comp); % added to use limits of color scale
+        imagesc(A(:,:,3)); % added to use limits of color scale
         axis image;
         colormap(vmap); 
         colorbar;
@@ -340,12 +338,14 @@ for m = 1:normNumFiles
 
         saveas(gcf,fullfile(devLUTpathname, ['Stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.png']));
 
-        writematrix(std_comp, fullfile(devLUTpathname,['stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
+        writematrix(A(:,:,3), fullfile(devLUTpathname,['stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
         
 
 
         clear A;
-        clear std_comp;
+        clear B;
+        clear C;
+        clear D;
 
     end
 end
