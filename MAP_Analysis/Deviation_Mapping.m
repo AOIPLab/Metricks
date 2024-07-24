@@ -26,7 +26,7 @@ devDataPath = uigetdir('.','Select directory containing maps to analyze');
 [normLUTfilename, normLUTpathname] = uigetfile('*.csv', 'Select file with Normative Map CDC coords', normDataPath);
 [devLUTfilename, devLUTpathname] = uigetfile('*.csv', 'Select file with CDC coords from maps to analyze', devDataPath);
 
-[stdfilename, stdpathname] = uigetfile('*.csv', 'Select Normative Stdev map');
+[stdfilename, stdpathname] = uigetfile('*.csv', 'Select Normative Stdev map', normDataPath);
 
 % Remove LUT file from fnameList
 devFnameList(ismember(devFnameList,devLUTfilename))=[];
@@ -92,6 +92,13 @@ for j=1:devNumFiles % Go through all files in list
     devCDC_x{j} = devLutData{2}(devLUTindex);
     devCDC_y{j} = devLutData{3}(devLUTindex);
     devdata{j} = readmatrix(fullfile(devDataPath,devFnameList{j}));
+
+    % flip OS maps to match the OD maps - Average Maps are in OD
+    % orientation
+    if contains(devFnameList{j}, 'OS')
+        devdata{j} = fliplr(devdata{j});
+        devCDC_x{j} = length(devdata{j})-(devCDC_x{j}-1);
+    end
 
     % get the orignal coordinates for the corners of the matrices
     l = size(devdata{j});
@@ -318,9 +325,9 @@ for n = 1:devNumFiles
             %     resultMap(q,u) = 4;
             % elseif comparisonData(q,u) > pstd{3}(q,u) || comparisonData(q,u) < mstd{3}(q,u)
             %     resultMap(q,u) = 3;
-            if comparisonData(q,u) > pstd{2}(q,u) || comparisonData(q,u) < mstd{2}(q,u)
+            if comparisonData(q,u) >= pstd{2}(q,u) || comparisonData(q,u) <= mstd{2}(q,u)
                 resultMap(q,u) = 2;
-            elseif comparisonData(q,u) > pstd{1}(q,u) || comparisonData(q,u) < mstd{1}(q,u)
+            elseif comparisonData(q,u) >= pstd{1}(q,u) || comparisonData(q,u) <= mstd{1}(q,u)
                 resultMap(q,u) = 1;
             else
                  resultMap(q,u) = 0;
@@ -328,20 +335,35 @@ for n = 1:devNumFiles
         end
     end
 
+    clims = [0 2];
+    vmap = [0 1 0 
+        1 1 0 
+        1 0 0];
 
-    vmap=viridis;
+    std0 = sum(resultMap(:) == 0)/numel(resultMap) * 100;
+    std1 = sum(resultMap(:) == 1)/numel(resultMap) * 100;
+    std2 = sum(resultMap(:) == 2)/numel(resultMap) * 100;
+
+    if (n == 1)
+        data = [std0, std1, std2];
+    else
+        data = [data; std0, std1, std2];
+    end
+
+    %vmap=viridis;
     dispfig=figure(count); 
-    imagesc(resultMap); % added to use limits of color scale
+    imagesc(resultMap, clims); % added to use limits of color scale
     axis image;
     colormap(vmap); 
     colorbar;
 
     count = count + 1;
 
-    % saveas(gcf,fullfile(devLUTpathname, ['Stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.png']));
-    % 
-    % writematrix(resultMap, fullfile(devLUTpathname,['stdev_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
-    % 
+
+    saveas(gcf,fullfile(devLUTpathname, ['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.png']));
+    saveas(gcf,fullfile(devLUTpathname, ['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.svg']));
+    writematrix(resultMap, fullfile(devLUTpathname,['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
+ 
 
 
     clear A;
@@ -357,6 +379,12 @@ for n = 1:devNumFiles
 end
 
 
+% wright standard deviation percentages to file
+data = num2cell(data);
+header = {'File Name', '% 0 Stdev', '% +-1 Stdev', '% +-2 Stdev'};
+StdevResults = cat(2,devFnameList, data);
+StdevResults = cat(1, header, StdevResults);
+writecell(StdevResults, fullfile(devDataPath, ['Deviation_Percentage_Analysis_Summary_', datestr(now, 'dd_mmm_yyyy'), '.csv']));
 
 
 

@@ -38,7 +38,6 @@ numFilesDim = size(fnameList);
 CDC_x = cell(numFilesDim);
 CDC_y = cell(numFilesDim);
 data = cell(numFilesDim);
-sz = cell(numFilesDim);
 
 tl = cell(numFilesDim);
 tr = cell(numFilesDim);
@@ -66,8 +65,11 @@ for i=1:numFiles % Go through all files in list
     CDC_y{i} = lutData{3}(LUTindex);
     data{i} = readmatrix(fullfile(dataPath,fnameList{i}));
 
-    % figure out the sizes of the matricies
-    sz{i} = size(data{i},1);
+    % flip OS maps to match the OD maps
+    if contains(fnameList{i}, 'OS')
+        data{i} = fliplr(data{i});
+        CDC_x{i} = length(data{i})-(CDC_x{i}-1);
+    end
 
     % get the orignal coordinates for the corners of the matrices
     l = size(data{i});
