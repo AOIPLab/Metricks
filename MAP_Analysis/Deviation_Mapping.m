@@ -3,6 +3,12 @@
 % Created by: Jenna Grieshop
 % Date created: 7/18/24
 %
+% Description:
+%
+% Input:
+%
+% Output:
+%
 %
 
 clear all;
@@ -291,79 +297,93 @@ for n = 1:devNumFiles
     comparisonData = comparisonData(:,~all(isnan(comparisonData))); 
     comparisonData = comparisonData(~all(isnan(comparisonData),2), :); 
 
-    normativeStdev = nstdpaddedData(:,~all(isnan(nstdpaddedData))); 
-    normativeStdev = normativeStdev(~all(isnan(normativeStdev),2), :); 
+
+%     normativeStdev = nstdpaddedData(:,~all(isnan(nstdpaddedData))); 
+%     normativeStdev = normativeStdev(~all(isnan(normativeStdev),2), :); 
+% 
+% 
+% 
+% 
+% % TODO might need to force the matrices to be a square. Center the CDC and
+% % then get rid of the excess
+% 
+%     nstdev{1} = normativeStdev;
+%     pstd{1} = normativeAverage + nstdev{1};
+%     mstd{1} = normativeAverage - nstdev{1};
+% 
+%     nstdev{2} = normativeStdev.*2;
+%     pstd{2} = normativeAverage + nstdev{2};
+%     mstd{2} = normativeAverage - nstdev{2};
+% 
+%     % nstdev{3} = normativeStdev.*3;
+%     % pstd{3} = normativeAverage + nstdev{3};
+%     % mstd{3} = normativeAverage - nstdev{3};
+%     % 
+%     % nstdev{4} = normativeStdev.*4;
+%     % pstd{4} = normativeAverage + nstdev{4};
+%     % mstd{4} = normativeAverage - nstdev{4};
+% 
+% 
+% 
+% 
+% 
+%     for q=1:size(normativeStdev, 1)
+%         for u=1:size(normativeStdev,2)
+%             % if comparisonData(q,u) > pstd{4}(q,u) || comparisonData(q,u) < mstd{4}(q,u)
+%             %     resultMap(q,u) = 4;
+%             % elseif comparisonData(q,u) > pstd{3}(q,u) || comparisonData(q,u) < mstd{3}(q,u)
+%             %     resultMap(q,u) = 3;
+%             if comparisonData(q,u) <= pstd{1}(q,u) && comparisonData(q,u) >= mstd{1}(q,u)
+%                 resultMap(q,u) = 1; % within +-1 stdev
+%             elseif comparisonData(q,u) <= pstd{2}(q,u) && comparisonData(q,u) >= mstd{2}(q,u)
+%                 resultMap(q,u) = 2; % within +-2 stdev
+%             else
+%                 resultMap(q,u) = 3; % more than +-2 stdev
+%             end
+%         end
+%     end
+% 
+%     clims = [1 3];
+%     vmap = [0 1 0 
+%         1 1 0 
+%         1 0 0];
+% 
+%     std1 = sum(resultMap(:) == 1)/numel(resultMap) * 100;
+%     std2 = sum(resultMap(:) == 2)/numel(resultMap) * 100;
+%     std2p = sum(resultMap(:) == 3)/numel(resultMap) * 100;
+% 
+%     if (n == 1)
+%         data = [std1, std2, std2p];
+%     else
+%         data = [data; std1, std2, std2p];
+%     end
+% 
+%     %vmap=viridis;
+%     dispfig=figure(count); 
+%     imagesc(resultMap, clims); % added to use limits of color scale
+%     axis image;
+%     colormap(vmap); 
+%     colorbar;
+% 
+%     count = count + 1;
+% 
+% 
+%     saveas(gcf,fullfile(devLUTpathname, ['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.png']));
+%     saveas(gcf,fullfile(devLUTpathname, ['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.svg']));
+%     writematrix(resultMap, fullfile(devLUTpathname,['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
 
 
-
-% TODO might need to force the matrices to be a square. Center the CDC and
-% then get rid of the excess
-
-    nstdev{1} = normativeStdev;
-    pstd{1} = normativeAverage + nstdev{1};
-    mstd{1} = normativeAverage - nstdev{1};
-
-    nstdev{2} = normativeStdev.*2;
-    pstd{2} = normativeAverage + nstdev{2};
-    mstd{2} = normativeAverage - nstdev{2};
-
-    % nstdev{3} = normativeStdev.*3;
-    % pstd{3} = normativeAverage + nstdev{3};
-    % mstd{3} = normativeAverage - nstdev{3};
-    % 
-    % nstdev{4} = normativeStdev.*4;
-    % pstd{4} = normativeAverage + nstdev{4};
-    % mstd{4} = normativeAverage - nstdev{4};
-    
-
-    
-
-
-    for q=1:size(normativeStdev, 1)
-        for u=1:size(normativeStdev,2)
-            % if comparisonData(q,u) > pstd{4}(q,u) || comparisonData(q,u) < mstd{4}(q,u)
-            %     resultMap(q,u) = 4;
-            % elseif comparisonData(q,u) > pstd{3}(q,u) || comparisonData(q,u) < mstd{3}(q,u)
-            %     resultMap(q,u) = 3;
-            if comparisonData(q,u) >= pstd{2}(q,u) || comparisonData(q,u) <= mstd{2}(q,u)
-                resultMap(q,u) = 2;
-            elseif comparisonData(q,u) >= pstd{1}(q,u) || comparisonData(q,u) <= mstd{1}(q,u)
-                resultMap(q,u) = 1;
-            else
-                 resultMap(q,u) = 0;
-            end
-        end
-    end
-
-    clims = [0 2];
-    vmap = [0 1 0 
-        1 1 0 
-        1 0 0];
-
-    std0 = sum(resultMap(:) == 0)/numel(resultMap) * 100;
-    std1 = sum(resultMap(:) == 1)/numel(resultMap) * 100;
-    std2 = sum(resultMap(:) == 2)/numel(resultMap) * 100;
-
-    if (n == 1)
-        data = [std0, std1, std2];
-    else
-        data = [data; std0, std1, std2];
-    end
-
-    %vmap=viridis;
-    dispfig=figure(count); 
-    imagesc(resultMap, clims); % added to use limits of color scale
+    vmap=viridis;
+    clims = [30000 190000];%[5000 27000];%[1.5 4.5]; %
+    imagesc(comparisonData,clims);
     axis image;
-    colormap(vmap); 
+    colormap(vmap);
     colorbar;
-
-    count = count + 1;
-
-
-    saveas(gcf,fullfile(devLUTpathname, ['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.png']));
-    saveas(gcf,fullfile(devLUTpathname, ['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_fig.svg']));
-    writematrix(resultMap, fullfile(devLUTpathname,['Deviation_' devFnameList{n} '_' datestr(now, 'yyyymmdd') '_raw.csv']));
- 
+    scaled_map = comparisonData-min(clims);
+    scaled_map(scaled_map <0) =0; %in case there are min values below this
+    scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
+    scaled_map(scaled_map  >255) = 255; %in case there are values above this
+    imwrite(scaled_map, viridis, ['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif']);
 
 
     clear A;
@@ -381,7 +401,7 @@ end
 
 % wright standard deviation percentages to file
 data = num2cell(data);
-header = {'File Name', '% 0 Stdev', '% +-1 Stdev', '% +-2 Stdev'};
+header = {'File Name', '% within +-1 Stdev', '% within +-2 Stdev', '% greater than +-2 Stdev'};
 StdevResults = cat(2,devFnameList, data);
 StdevResults = cat(1, header, StdevResults);
 writecell(StdevResults, fullfile(devDataPath, ['Deviation_Percentage_Analysis_Summary_', datestr(now, 'dd_mmm_yyyy'), '.csv']));

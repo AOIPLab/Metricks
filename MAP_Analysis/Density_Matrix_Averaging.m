@@ -2,17 +2,25 @@
 % 
 % Created by: Jenna Grieshop
 % Date created: 7/12/2024
+% Description: Script that takes multiple matrices (Density, NND, etc),
+% aligns the CDC points of each and averages them to make an averaged map.
+% Also creates standard deviation maps.
+%
+% Input: Directory containing the matrices, a LUT file that contains the
+% names of the matrices and the CDC coordinates. The LUT can be in the same
+% folder as the matrices.
+%
+% Output: 3 versions of the average matrix as a csv (
+%
 %
 
 
-%%% need to save tot items with the number in the total
-%
 
 clear all;
 close all;
 clc;
 
-N=50;
+N=2; % Minimum amount of subjects overlapping
 
 basepath = which('Density_Matrix_Averaging.m');
 [basepath] = fileparts(basepath);
@@ -35,6 +43,7 @@ fnameList(ismember(fnameList,LUTfilename))=[];
 numFiles = size(fnameList,1);
 numFilesDim = size(fnameList);
 
+% initialize variables
 CDC_x = cell(numFilesDim);
 CDC_y = cell(numFilesDim);
 data = cell(numFilesDim);
@@ -55,12 +64,12 @@ blao =cell(numFilesDim);
 brao = cell(numFilesDim);
 
 
-
 for i=1:numFiles % Go through all files in list 
 
     % Find the information from the LUT file for the data                           
     LUTindex=find( cellfun(@(s) ~isempty(strfind(fnameList{i},s )), lutData{1} ) );
     
+    % Extract info from lut file and read in data
     CDC_x{i} = lutData{2}(LUTindex);
     CDC_y{i} = lutData{3}(LUTindex);
     data{i} = readmatrix(fullfile(dataPath,fnameList{i}));
@@ -89,6 +98,7 @@ for i=1:numFiles % Go through all files in list
     CDC_x{i} = CDC_x{i} - CDC_x{i}+1;
     CDC_y{i} = CDC_y{i} - CDC_y{i}+1;
 
+    % organize data so it can be used later
     array{i,1} = tla{i}(1);
     array{i,2} = tla{i}(2);
     array{i,3} = tra{i}(1);
@@ -100,17 +110,18 @@ for i=1:numFiles % Go through all files in list
 
 end
 
-
+% reformat the to a matrix
 array = cell2mat(array);
 
 % find the minimum of all the coordinates
 [minimumx, minIx] = min(array(:,1));
 [minimumy, minIy] = min(array(:,2));
 
+% find the maximum of all the coordinates
 [maximumx, maxIx] = max(array(:,7));
 [maximumy, maxIy] = max(array(:,8));
 
-
+% determine the offset
 offset = abs([minimumx-1, minimumy-1]);
 
 for j=1:numFiles
@@ -121,7 +132,7 @@ for j=1:numFiles
     blao{j} = bla{j} + offset;
     brao{j} = bra{j} + offset;
     
-    
+    % adjust the cdc by the offset
     CDC_x{j} = CDC_x{j} + offset(1);
     CDC_y{j} = CDC_y{j} + offset(2);
 
@@ -129,13 +140,15 @@ end
 
 for j=1:numFiles
 
-    % figure out how much padding is needed
+    % figure out how much padding is needed on each size
 
     left = abs(tlao{minIx}(1)-tlao{j}(1));
     top = abs(tlao{minIy}(2)-tlao{j}(2));
     right = abs(brao{maxIx}(1)-brao{j}(1));
     bottom = abs(brao{maxIy}(2)-brao{j}(2));
 
+    % make a copy of the data so that it can be padded without corrupting
+    % the original
     paddedData = data{j};
 
     leftPad = zeros(size(paddedData,1), left);
@@ -153,7 +166,9 @@ for j=1:numFiles
     % change the padded portion to be Nan
     paddedData(paddedData==0) = NaN;
 
+    % overwrite data with the padded version
     data{j} = paddedData;
+    % combine all data into 3D matrix so they are stacked
     A(:,:,j) = data{j};
 
 end
@@ -279,8 +294,8 @@ standard_dev_N((new_dim*2):end,:) = [];
 standard_dev_N(:,(new_dim*2):end) = [];
 
  % added to set limits of color scale
-clims = [50000 225000];
-clims2 = [5000 45000];
+clims = [1.5 4.5]; %NND %[50000 225000];%Density%
+clims2 = [0.1 0.3]; %NND %[5000 45000];%Density%
 
 vmap=viridis; %calls viridis colormap function
 
@@ -394,10 +409,10 @@ imwrite(scaled_map_stdevN, vmap, fullfile(LUTpathname,['Stdev_' num2str(N) '_bou
 
 %save matrices
 writematrix(average_all, fullfile(LUTpathname,['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
-writematrix(average_tot,  fullfile(LUTpathname,['Averaged_' num2str(numFiles) 'bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+writematrix(average_tot,  fullfile(LUTpathname,['Averaged_' num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(average_N,  fullfile(LUTpathname,['Averaged_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(standard_dev_all, fullfile(LUTpathname,['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
-writematrix(standard_dev_tot,  fullfile(LUTpathname,['Stdev_' num2str(numFiles) 'bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
+writematrix(standard_dev_tot,  fullfile(LUTpathname,['Stdev_' num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(standard_dev_N,  fullfile(LUTpathname,['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(NanCount, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix([CDC_og; CDC_tot; CDC_N], fullfile(LUTpathname,['CDC_' datestr(now, 'yyyymmdd') '.csv']));
