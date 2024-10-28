@@ -1,16 +1,29 @@
 % Average Density Maps
-% 
+% AOIP
 % Created by: Jenna Grieshop
 % Date created: 7/12/2024
-% Description: Script that takes multiple matrices (Density, NND, etc),
-% aligns the CDC points of each and averages them to make an averaged map.
-% Also creates standard deviation maps.
+%
+% Description: Script takes multiple metrics maps (e.g. density maps) and
+% aligns then accordingly to the map CDC points to then create average and
+% standard devation maps for the data. This script creates different
+% variations of the average and standard deviation maps. Including all
+% possible data even in spots where no overlapping occurs, data that has
+% at least N (50) maps overlapping, and data that has all matricies
+% overlapping.
 %
 % Input: Directory containing the matrices, a LUT file that contains the
 % names of the matrices and the CDC coordinates. The LUT can be in the same
 % folder as the matrices.
 %
-% Output: 3 versions of the average matrix as a csv (
+% Output: 
+% Outputs are saved in the folder containing the LUT file
+% 1. 3 versions of the average and standard deviation matricies. 
+% Including all possible data even in spots where no overlapping occurs (ALL), 
+% data that has at least N (50) maps overlapping, and data that has all 
+% matricies overlapping. These are saved as figures, raw images, and csv
+% files. 
+% 2. Image and csv of the amount of overlapping datapoints.
+% 3. CDC csv of the master CDC for each of the resulting types of map.
 %
 %
 
@@ -20,7 +33,7 @@ clear all;
 close all;
 clc;
 
-N=2; % Minimum amount of subjects overlapping
+N=50; % Minimum amount of subjects overlapping (make sure you have at least more that N input maps)
 
 basepath = which('Density_Matrix_Averaging.m');
 [basepath] = fileparts(basepath);
@@ -32,18 +45,18 @@ dataPath = uigetdir('.','Select directory containing analyses');
 % Read in csv names and then have user select the LUT
 [fnameList] = read_folder_contents(dataPath,'csv');
 % select and load in filename of the LUT with CDC
-[LUTfilename, LUTpathname] = uigetfile('*.csv', 'Select file with CDC coords');
+[LUTfilename, LUTpathname] = uigetfile('*.csv', 'Select file with CDC coords', dataPath);
 
 % Remove LUT file from fnameList
 fnameList(ismember(fnameList,LUTfilename))=[];
 
-% load in the LUT file
+% Load in the LUT file
 [~, lutData] = load_LUT_file(fullfile(LUTpathname,LUTfilename));
 
 numFiles = size(fnameList,1);
 numFilesDim = size(fnameList);
 
-% initialize variables
+% Initialize variables
 CDC_x = cell(numFilesDim);
 CDC_y = cell(numFilesDim);
 data = cell(numFilesDim);
@@ -74,31 +87,31 @@ for i=1:numFiles % Go through all files in list
     CDC_y{i} = lutData{3}(LUTindex);
     data{i} = readmatrix(fullfile(dataPath,fnameList{i}));
 
-    % flip OS maps to match the OD maps
+    % Flip OS maps to match the OD maps so that the orientation matches
     if contains(fnameList{i}, 'OS')
         data{i} = fliplr(data{i});
         CDC_x{i} = length(data{i})-(CDC_x{i}-1);
     end
 
-    % get the orignal coordinates for the corners of the matrices
+    % Get the orignal coordinates for the corners of the matrices
     l = size(data{i});
     tl{i} = [2,2];
     tr{i} = [l(2)+1,2];
     bl{i} = [2,l(1)+1];
     br{i} = [l(2)+1,l(1)+1];
 
-    % get the adjusted coordinates for the corners of the matrix. Offset
+    % Get the adjusted coordinates for the corners of the matrix. Offset
     % by the CDC coords
     tla{i} = tl{i}-[CDC_x{i},CDC_y{i}];
     tra{i} = tr{i}-[CDC_x{i},CDC_y{i}];
     bla{i} = bl{i}-[CDC_x{i},CDC_y{i}];
     bra{i} = br{i}-[CDC_x{i},CDC_y{i}];
 
-    %subtract from cdc coords too
+    % Subtract from cdc coords too
     CDC_x{i} = CDC_x{i} - CDC_x{i}+1;
     CDC_y{i} = CDC_y{i} - CDC_y{i}+1;
 
-    % organize data so it can be used later
+    % Organize data so it can be used later
     array{i,1} = tla{i}(1);
     array{i,2} = tla{i}(2);
     array{i,3} = tra{i}(1);
@@ -110,29 +123,29 @@ for i=1:numFiles % Go through all files in list
 
 end
 
-% reformat the to a matrix
+% Reformat the to a matrix
 array = cell2mat(array);
 
-% find the minimum of all the coordinates
+% Find the minimum of all the coordinates
 [minimumx, minIx] = min(array(:,1));
 [minimumy, minIy] = min(array(:,2));
 
-% find the maximum of all the coordinates
+% Find the maximum of all the coordinates
 [maximumx, maxIx] = max(array(:,7));
 [maximumy, maxIy] = max(array(:,8));
 
-% determine the offset
+% Determine the offset
 offset = abs([minimumx-1, minimumy-1]);
 
 for j=1:numFiles
 
-    % adjust all coordinates by the minimum by adding the offset
+    % Adjust all coordinates by the minimum by adding the offset
     tlao{j} = tla{j} + offset;
     trao{j} = tra{j} + offset;
     blao{j} = bla{j} + offset;
     brao{j} = bra{j} + offset;
     
-    % adjust the cdc by the offset
+    % Adjust the cdc by the offset
     CDC_x{j} = CDC_x{j} + offset(1);
     CDC_y{j} = CDC_y{j} + offset(2);
 
@@ -140,14 +153,14 @@ end
 
 for j=1:numFiles
 
-    % figure out how much padding is needed on each size
+    % Figure out how much padding is needed on each size
 
     left = abs(tlao{minIx}(1)-tlao{j}(1));
     top = abs(tlao{minIy}(2)-tlao{j}(2));
     right = abs(brao{maxIx}(1)-brao{j}(1));
     bottom = abs(brao{maxIy}(2)-brao{j}(2));
 
-    % make a copy of the data so that it can be padded without corrupting
+    % Make a copy of the data so that it can be padded without corrupting
     % the original
     paddedData = data{j};
 
@@ -163,12 +176,12 @@ for j=1:numFiles
     bottomPad = zeros(bottom, size(paddedData, 2));
     paddedData = vertcat(paddedData, bottomPad);
   
-    % change the padded portion to be Nan
+    % Change the padded portion to be Nan
     paddedData(paddedData==0) = NaN;
 
-    % overwrite data with the padded version
+    % Overwrite data with the padded version
     data{j} = paddedData;
-    % combine all data into 3D matrix so they are stacked
+    % Combine all data into 3D matrix so they are stacked
     A(:,:,j) = data{j};
 
 end
@@ -176,31 +189,31 @@ end
     
 AN = A;
 Atotal = A;
-% figure out how many maps contributed to each location
+% Figure out how many maps contributed to each location
 NanCount = NaN(size(A,1),size(A,2));
 dim = size(A,3);
 for m=1:size(A,1)
     for n = 1:size(A,2)
         NanCount(m,n) = dim - sum(isnan(A(m,n,:)));
         if NanCount(m,n) < N
-            % if less than N get rid of the spot for the N map one
+            % If less than N get rid of the spot for the N map one
             AN(m,n,:) = NaN;
         end
         if NanCount(m,n) < numFiles
-            % if less than total number of maps get rid of the spot for the N map one
+            % If less than total number of maps get rid of the spot for the N map one
             Atotal(m,n,:) = NaN;
         end
     end
 end
 
-% these are the x and y coordinates in order
+% These are the x and y coordinates in order
 CDC_og = [CDC_x{1}, CDC_y{1}];
 CDC_N = CDC_og;
 CDC_tot = CDC_og;
 
 
 %%
-% get the average of the stacked maps
+% Get the average of the stacked maps
 average_all = mean(A,3, "omitnan");
 standard_dev_all = std(A, [], 3, "omitmissing");
 
@@ -213,10 +226,10 @@ average_N = mean(AN,3, "omitnan");
 standard_dev_N = std(AN, [], 3, "omitmissing");
 
 
-% figure out how much will need to adjust CDC coords for new maps once full
+% Figure out how much will need to adjust CDC coords for new maps once full
 % NaN rows and columns deleted
 
-% total  
+% Total  
 for q=1:size(average_tot,2)
     if sum(average_tot(:,q), "omitnan") > 0
         break;
@@ -251,7 +264,7 @@ for t=1:size(average_N,1)
 end
 
 
-% get rid of Rows and Columns with only Nans
+% Get rid of Rows and Columns with only Nans
 average_tot = average_tot(:,~all(isnan(average_tot))); 
 average_tot = average_tot(~all(isnan(average_tot),2), :); 
 average_N = average_N(:,~all(isnan(average_N))); 
@@ -273,33 +286,37 @@ for j = 1:size(average_N,1)
     end
 end
 
-% adjust the CDC coordinates
+% Adjust the CDC coordinates
 x_diff = CDC_N(1) - new_dim;
 CDC_N(1) = CDC_N(1) - x_diff;
 
 y_diff = CDC_N(2) - new_dim;
 CDC_N(2) = CDC_N(2) - y_diff;
 
-% delete the rows and columns that do not fit in the largest square
-average_N(1:y_diff,:) = [];
-average_N(:,1:x_diff) = [];
+% Delete the rows and columns that do not fit in the largest square
+try
+    average_N(1:y_diff,:) = [];
+    average_N(:,1:x_diff) = [];
+    
+    average_N((new_dim*2):end,:) = [];
+    average_N(:,(new_dim*2):end) = [];
 
-average_N((new_dim*2):end,:) = [];
-average_N(:,(new_dim*2):end) = [];
-
+catch
+    error("N is too large, please reduce on line 35.")
+end
 standard_dev_N(1:y_diff,:) = [];
 standard_dev_N(:,1:x_diff) = [];
 
 standard_dev_N((new_dim*2):end,:) = [];
 standard_dev_N(:,(new_dim*2):end) = [];
 
- % added to set limits of color scale
-clims = [1.5 4.5]; %NND %[50000 225000];%Density%
-clims2 = [0.1 0.3]; %NND %[5000 45000];%Density%
+% Added to set limits of color scale
+clims = [50000 225000]; %Density%[1.5 4.5]; %NND %
+clims2 = [5000 45000]; %Density%[0.1 0.3]; %NND %
 
 vmap=viridis; %calls viridis colormap function
 
-% display average of everything map
+% Display average of everything map
 dispfig=figure(1); 
 imagesc(average_all,clims); % added to use limits of color scale
 axis image;
@@ -308,16 +325,16 @@ colorbar;
 
 saveas(gcf,fullfile(LUTpathname, ['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 
-% display average of just overlapping map
+% Display average of just overlapping map
 dispfig=figure(2); 
 imagesc(average_tot,clims); % added to use limits of color scale
 axis image;
 colormap(vmap); 
 colorbar; 
 
-saveas(gcf,fullfile(LUTpathname, ['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+saveas(gcf,fullfile(LUTpathname, ['Averaged_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 
-% display average of overlapping N subjects
+% Display average of overlapping N subjects
 dispfig=figure(3); 
 imagesc(average_N,clims); % added to use limits of color scale
 axis image;
@@ -327,7 +344,7 @@ colorbar;
 saveas(gcf,fullfile(LUTpathname, ['Averaged_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 
 
-% display stdev of everything map
+% Display stdev of everything map
 dispfig=figure(4); 
 imagesc(standard_dev_all,clims2); % added to use limits of color scale
 axis image;
@@ -336,16 +353,16 @@ colorbar;
 
 saveas(gcf,fullfile(LUTpathname, ['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 
-% display stdev of just overlapping map
+% Display stdev of just overlapping map
 dispfig=figure(5); 
 imagesc(standard_dev_tot,clims2); % added to use limits of color scale
 axis image;
 colormap(vmap); 
 colorbar; 
 
-saveas(gcf,fullfile(LUTpathname, ['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+saveas(gcf,fullfile(LUTpathname, ['Stdev_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 
-% display stdev of just overlapping map
+% Display stdev of just overlapping map of N
 dispfig=figure(6); 
 imagesc(standard_dev_N,clims2); % added to use limits of color scale
 axis image;
@@ -355,7 +372,7 @@ colorbar;
 saveas(gcf,fullfile(LUTpathname, ['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 
 
-% display NanCount map
+% Display NanCount map
 dispfig=figure(7); 
 imagesc(NanCount);
 axis image;
@@ -365,7 +382,7 @@ colorbar;
 saveas(gcf,fullfile(LUTpathname, ['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_fig.png']));
 imwrite(NanCount, vmap, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
 
-% average
+% Average
 scaled_map_all = average_all-min(clims);
 scaled_map_all(scaled_map_all <0) =0; %in case there are min values below this
 scaled_map_all = uint8(255*scaled_map_all./(max(clims)-min(clims)));
@@ -377,7 +394,7 @@ scaled_map = average_tot-min(clims);
 scaled_map(scaled_map <0) =0; %in case there are min values below this
 scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
 scaled_map(scaled_map  >255) = 255; %in case there are values above this
-imwrite(scaled_map, vmap, fullfile(LUTpathname,['Averaged_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+imwrite(scaled_map, vmap, fullfile(LUTpathname,['Averaged_' num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
 
 scaled_mapN = average_N-min(clims);
 scaled_mapN(scaled_mapN <0) =0; %in case there are min values below this
@@ -398,7 +415,7 @@ scaled_map_stdev = standard_dev_tot-min(clims2);
 scaled_map_stdev(scaled_map_stdev <0) =0; %in case there are min values below this
 scaled_map_stdev = uint8(255*scaled_map_stdev./(max(clims2)-min(clims2)));
 scaled_map_stdev(scaled_map_stdev  >255) = 255; %in case there are values above this
-imwrite(scaled_map_stdev, vmap, fullfile(LUTpathname,['Stdev_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
+imwrite(scaled_map_stdev, vmap, fullfile(LUTpathname,['Stdev_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
 
 scaled_map_stdevN = standard_dev_N-min(clims2);
 scaled_map_stdevN(scaled_map_stdevN <0) =0; %in case there are min values below this
@@ -407,7 +424,7 @@ scaled_map_stdevN(scaled_map_stdevN  >255) = 255; %in case there are values abov
 imwrite(scaled_map_stdevN, vmap, fullfile(LUTpathname,['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.tif'])); 
 
 
-%save matrices
+% Save matrices
 writematrix(average_all, fullfile(LUTpathname,['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(average_tot,  fullfile(LUTpathname,['Averaged_' num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(average_N,  fullfile(LUTpathname,['Averaged_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
@@ -415,6 +432,8 @@ writematrix(standard_dev_all, fullfile(LUTpathname,['Stdev_ALL_bound_density_map
 writematrix(standard_dev_tot,  fullfile(LUTpathname,['Stdev_' num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(standard_dev_N,  fullfile(LUTpathname,['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
 writematrix(NanCount, fullfile(LUTpathname,['Included_datapoint_map_' datestr(now, 'yyyymmdd') '_raw.csv']));
-writematrix([CDC_og; CDC_tot; CDC_N], fullfile(LUTpathname,['CDC_' datestr(now, 'yyyymmdd') '.csv']));
+header = {['ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_raw']; [ num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw']; [num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_raw']};
+result = [header, num2cell([CDC_og; CDC_tot; CDC_N])];
+writecell(result, fullfile(LUTpathname,['CDC_' datestr(now, 'yyyymmdd') '.csv']));
 
 
