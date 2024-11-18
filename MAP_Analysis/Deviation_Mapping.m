@@ -14,12 +14,12 @@
 % maps and LUT file with the CDC coordinates.
 % The code will ask you for things in this order:
 % 1. The normative averaged map
-% 2. The directory of comparrision maps
+% 2. The directory of comparision maps
 % 3. CDC LUT file for normative averaged map
-% 4. CDC LUT file for comparrison maps
+% 4. CDC LUT file for comparison maps
 % 5. Normative standard deviation map
 %
-% Outputs: Outputs are saved in the comparrison metric maps folder. Raw
+% Outputs: Outputs are saved in the comparison metric maps folder. Raw
 % data deviation map csv (for each), deviation map image and svg (for each),
 % deviation percentage analysis csv (summary for all).
 %

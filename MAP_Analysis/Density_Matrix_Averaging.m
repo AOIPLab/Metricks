@@ -5,10 +5,10 @@
 %
 % Description: Script takes multiple metrics maps (e.g. density maps) and
 % aligns then accordingly to the map CDC points to then create average and
-% standard devation maps for the data. This script creates different
+% standard deviation maps for the data. This script creates different
 % variations of the average and standard deviation maps. Including all
 % possible data even in spots where no overlapping occurs, data that has
-% at least N (50) maps overlapping, and data that has all matricies
+% at least N (50) maps overlapping, and data that has all matrices
 % overlapping.
 %
 % Input: Directory containing the matrices, a LUT file that contains the
@@ -20,7 +20,7 @@
 % 1. 3 versions of the average and standard deviation matricies. 
 % Including all possible data even in spots where no overlapping occurs (ALL), 
 % data that has at least N (50) maps overlapping, and data that has all 
-% matricies overlapping. These are saved as figures, raw images, and csv
+% matrices overlapping. These are saved as figures, raw images, and csv
 % files. 
 % 2. Image and csv of the amount of overlapping datapoints.
 % 3. CDC csv of the master CDC for each of the resulting types of map.
