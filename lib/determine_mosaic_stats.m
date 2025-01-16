@@ -94,10 +94,12 @@ if sum(bound) ~= 0
     percent_six_sided = 100*sixsided/size(coords_bound,1);
 else
     cellarea=0;
+    cellarea_deg = 0;
     mean_cellarea=0;
     regularity_voro_index=0;
     regularity_voro_sides=0;
     percent_six_sided=0;
+    coords_bound = [];
 end
 % waitbar(0.4,wb,'Determining Density');
 
@@ -128,6 +130,7 @@ if ~isempty(coords_bound)
     end
 else
     density_bound = 0;
+    density_bound_deg = 0;
 end
 
 
