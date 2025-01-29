@@ -2,8 +2,7 @@
 % Date of creation: 7/2/2024
 %
 % Description: Script that scales Foveal ROI coordinates to a set scale 
-% that was used to scale the images (hard codded
-% currently to be 1240x1240 for 300um or 2066x2066 for 500um)
+% that was used to scale the images
 %
 % Input: Folder containing foveal ROI coordinates, csv names must be in either
 % of these formats:
@@ -80,7 +79,7 @@ for i=1:size(fnameList,1) % Go through all files in list
     % create new file name
     parts = split(fnameList{i}, "_");
 
-    if parts{1} == "JC"
+    if length(parts{1}) == 2
     
         new_name = [parts{1}, "_" parts{2} "_" parts{3} "_" parts{4} "_" new_mpp "mpp_" new_ppd "ppd_" parts{7} "_" parts{8} "_" parts{9} "_scaled_" parts{10}];
         new_name = strjoin(new_name);

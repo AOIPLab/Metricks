@@ -35,7 +35,7 @@ resultPath = uigetdir('.','Select directory to save scaled images in');
 
 for i=1:size(fnameList,1)
     spl = split(fnameList{i}, '_');
-    if spl{1} == "JC"
+    if length(spl{1}) == 2
         og_mpp = split(spl{5},"mpp");
         og_mpp = str2double(strrep(og_mpp{1}, "p", "."));
         og_ppd = split(spl{6},"ppd");
@@ -94,7 +94,7 @@ for i=1:size(fnameList,1)
     str_ppd = num2str(new_ppd);
     str_ppd = strrep(str_ppd, ".", "p");
     
-    if spl{1} == "JC"
+    if length(spl{1}) == 2
         new_name = [spl{1}, "_" spl{2} "_" spl{3} "_" spl{4} "_" str_mpp "mpp_" str_ppd "ppd_" spl{7} "_" spl{8} "_" spl{9} "_scaled.tif"];
     else
         new_name = [spl{1}, "_" spl{2} "_" spl{3} "_" str_mpp "mpp_" str_ppd "ppd_" spl{6} "_" spl{7} "_" spl{8} "_scaled.tif"];
