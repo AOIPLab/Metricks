@@ -202,6 +202,9 @@ for m=1:size(A,1)
         if NanCount(m,n) < numFiles
             % If less than total number of maps get rid of the spot for the N map one
             Atotal(m,n,:) = NaN;
+            template(m,n,:) = NaN;
+        else
+            template(m,n,:) = 0;
         end
     end
 end
@@ -304,11 +307,116 @@ try
 catch
     error("N is too large, please reduce on line 35.")
 end
+
 standard_dev_N(1:y_diff,:) = [];
 standard_dev_N(:,1:x_diff) = [];
 
 standard_dev_N((new_dim*2):end,:) = [];
 standard_dev_N(:,(new_dim*2):end) = [];
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% This is not needed for the data for Zacharias paper, maybe needed in
+% future
+% Figure out the max square area for the tot matrix
+% sq_dim_tot = min(size(average_tot, 1), size(average_tot, 2));
+% 
+% if (size(average_tot,1) ~= sq_dim_tot)
+%     cut = (size(average_tot,1) - sq_dim_tot)/2;
+%     if mod(cut,1) ~= 0
+%         cut1 = floor(cut);
+%         cut2 = ceil(cut);
+%     else
+%         cut1 = cut;
+%         cut2 = cut;
+%     end
+% 
+%     idx1 = 1:cut1;
+%     idx2 = size(average_tot,1)-cut2+1:size(average_tot,1);
+% 
+%     average_tot(idx2,:) = [];
+%     average_tot(idx1,:) = [];
+%     standard_dev_tot(idx2,:) = [];
+%     standard_dev_tot(idx1,:) = [];
+% 
+%     CDC_tot(2) = CDC_tot(2) - cut1;
+% 
+% elseif (size(average_tot,2) ~= sq_dim_tot)
+%     cut = (size(average_tot,2) - sq_dim_tot)/2;
+%     if mod(cut,1) ~= 0
+%         cut1 = floor(cut);
+%         cut2 = ceil(cut);
+%     else
+%         cut1 = cut;
+%         cut2 = cut;
+%     end
+% 
+%     idx1 = 1:cut1;
+%     idx2 = size(average_tot,2)-cut2:size(average_tot,2);
+% 
+%     average_tot(:,idx2) = [];
+%     average_tot(:,idx1) = [];
+%     standard_dev_tot(:,idx2) = [];
+%     standard_dev_tot(:,idx1) = [];
+% 
+%     CDC_tot(1) = CDC_tot(1) - cut1;
+% 
+% else
+%     disp('Matrix already square')
+% end
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+
+% this is happening above now - lines 205,208
+% Prepare data to be extracted
+% template = NanCount;
+% for m=1:size(NanCount,1)
+%     for n = 1:size(NanCount,2)
+%         if NanCount(m,n) < numFiles
+%             % If less than N get rid of the spot for the N map one
+%             template(m,n) = NaN;
+%         else
+%             template(m,n) = 0;
+%         end
+%     end
+% end
+
+
+% Extract data and ensure CDC point is centered in available square area
+
+for i=1:size(data,1)
+    % index = CDC_og(1)-floor(sq_dim_tot/2):CDC_og(1)+floor(sq_dim_tot/2);
+    % common_row_extraction(:,:,i) = data{i,1}(CDC_og(2), index);
+    combo = template + data{i,1};
+    common_area_1side = size(average_tot,2) - CDC_tot(1);
+    left = CDC_og(1) - common_area_1side;
+    right = CDC_og(1) + common_area_1side;
+    common(:,:,i) = combo(CDC_og(2), left:right);
+
+end
+CDC_tot_old = CDC_tot(1);
+CDC_tot_extracted = common_area_1side+1; % plus 1 because there are common area 1size on either side of the CDC
+
+% average the common_row_extraction to see if I get the same matrix as the
+% tot matrix
+
+target = average_tot(CDC_tot(2),:);
+test = mean(common, 3); % used as a test to ensure that the averaged CDC from our extracted rows match what our original averaged was - to ensure the correct columns were taken
+
+% sanity check
+if(target(1,CDC_tot_old)) ~= test(1,CDC_tot(1))
+    disp('warning!! Something is wrong')
+end
+
+%% graph individual plots
+    % basic plot of the individual results
+    figure(1)
+    plot(common(1,:,1));
+    figure(2)
+    plot(test);
+   
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Added to set limits of color scale
 clims = [50000 225000]; %Density%[1.5 4.5]; %NND %

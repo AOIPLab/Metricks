@@ -1,8 +1,8 @@
 % Author: Jenna Grieshop
 % Date of creation: 7/3/2024
 %
-% Description: Script that scales Foveal ROI to a set scale (hard codded
-% currently to be 1240x1240 for 300um or 2066x2066 for 500um)
+% Description: Script that scales Foveal ROI to a set scale 0.25mpp (image
+% size of 2400x2400 for 600um, 2000x2000 for 500um, 1200x1200 for 300um)
 %
 % Input: Folder containing foveal ROI images, image name must be in either
 % of these formats:
@@ -62,14 +62,14 @@ for i=1:size(fnameList,1)
     
 
     if roi_size == 300
-        new_dim = 1240;
-        new_center = 620;
+        new_dim = 1200;
+        new_center = 600;
     elseif roi_size == 500
-        new_dim = 2066;
-        new_center = 1033;
+        new_dim = 2000;
+        new_center = 1000; 
     elseif roi_size == 600
-        new_dim = 2480;
-        new_center = 1240;
+        new_dim = 2400;
+        new_center = 1200;
     end
 
     % Load in image
