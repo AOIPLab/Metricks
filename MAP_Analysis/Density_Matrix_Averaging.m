@@ -411,8 +411,10 @@ end
 
 %% graph individual plots
     % basic plot of the individual results
-    figure(1)
-    plot(common(1,:,1));
+    for i=1:numFiles
+        figure
+        plot(common(1,:,i));
+    end
     figure(2)
     plot(test);
    
