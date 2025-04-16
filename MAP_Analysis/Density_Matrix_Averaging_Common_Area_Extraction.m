@@ -28,7 +28,7 @@ clc;
 
 N=50; % Minimum amount of subjects overlapping (make sure you have at least more that N input maps)
 
-basepath = which('Density_Matrix_Averaging.m');
+basepath = which('Density_Matrix_Averaging_Common_Area_Extraction.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
