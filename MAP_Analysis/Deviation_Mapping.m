@@ -29,11 +29,12 @@ clear all;
 close all;
 clc;
 
-
-basepath = which('Density_Matrix_Averaging.m');
+basepath = which('Deviation_Mapping.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
+load BLORW2_colormap
+% colormap(OrBlColorMap);
 
 % User selects data
 [normFname, normDataPath] = uigetfile('*.csv', 'Select Normative Average Map');
@@ -326,10 +327,10 @@ for n = 1:devNumFiles
     mstd{2} = normativeAverage - nstdev{2};
 
     % Additional standard deviation options
-    % nstdev{3} = normativeStdev.*3;
-    % pstd{3} = normativeAverage + nstdev{3};
-    % mstd{3} = normativeAverage - nstdev{3};
-    % 
+    nstdev{3} = normativeStdev.*3;
+    pstd{3} = normativeAverage + nstdev{3};
+    mstd{3} = normativeAverage - nstdev{3};
+
     % nstdev{4} = normativeStdev.*4;
     % pstd{4} = normativeAverage + nstdev{4};
     % mstd{4} = normativeAverage - nstdev{4};
@@ -339,30 +340,28 @@ for n = 1:devNumFiles
         for u=1:size(normativeStdev,2)
             % Additional standard deviation options
             % if comparisonData(q,u) > pstd{4}(q,u) || comparisonData(q,u) < mstd{4}(q,u)
-            %     resultMap(q,u) = 4;
+            %     resultMap2(q,u) = 4;
             % elseif comparisonData(q,u) > pstd{3}(q,u) || comparisonData(q,u) < mstd{3}(q,u)
-            %     resultMap(q,u) = 3;
+            %     resultMap2(q,u) = 3;
+            resultMap(q,u) = (comparisonData(q,u) - normativeAverage(q,u)) / normativeStdev(q,u);
+
             if comparisonData(q,u) <= pstd{1}(q,u) && comparisonData(q,u) >= mstd{1}(q,u)
-                resultMap(q,u) = 1; % within +-1 stdev
+                resultMap2(q,u) = 1; % within +-1 stdev
             elseif comparisonData(q,u) <= pstd{2}(q,u) && comparisonData(q,u) >= mstd{2}(q,u)
-                resultMap(q,u) = 2; % within +-2 stdev
+                resultMap2(q,u) = 2; % within +-2 stdev
             else
-                resultMap(q,u) = 3; % more than +-2 stdev
+                resultMap2(q,u) = 3; % more than +-2 stdev
             end
         end
     end
 
     % clims for the devaition map
-    clims = [1 3];
-    % Color scheme for the deviaiton map
-    vmap = [0 1 0 
-        1 1 0 
-        1 0 0];
+    clims = [-3 3];
 
     % Determine what regions of the map are within the standard deviations
-    std1 = sum(resultMap(:) == 1)/numel(resultMap) * 100;
-    std2 = sum(resultMap(:) == 2)/numel(resultMap) * 100;
-    std2p = sum(resultMap(:) == 3)/numel(resultMap) * 100;
+    std1 = sum(resultMap2(:) == 1)/numel(resultMap2) * 100;
+    std2 = sum(resultMap2(:) == 2)/numel(resultMap2) * 100;
+    std2p = sum(resultMap2(:) == 3)/numel(resultMap2) * 100;
 
     if (n == 1)
         data = [std1, std2, std2p];
@@ -371,11 +370,10 @@ for n = 1:devNumFiles
     end
 
     % Plot the map
-    vmap=viridis;
     dispfig=figure(count); 
     imagesc(resultMap, clims); % Added to use limits of color scale
     axis image;
-    colormap(vmap); 
+    colormap(BLORW2_colormap); 
     colorbar;
 
     count = count + 1;
