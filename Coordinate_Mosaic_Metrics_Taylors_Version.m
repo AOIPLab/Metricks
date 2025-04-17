@@ -401,6 +401,7 @@ for q = 2 :  length(subfolders)-1
         catch ex
             warning(['Unable to analyze ' fnamelist{i} ':']);
             warning([ex.message ', In file: ' ex.stack(1).file '  Line: ' num2str(ex.stack(1).line)]);
+            warning('If warning on line 199, change {} to [] and vice versa on that line.');
         end
     end
     close(proghand);
