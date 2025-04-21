@@ -181,14 +181,22 @@ if size(data{1}) == size(data{2})
     vis = mesh(resultMatrix);
     view(0,90);
     set(gca, 'Visible', 'on')
+    axis square
+    colorbar
     f = gcf;
     exportgraphics(f,fullfile(LUTpathname, [filename '_2.tif']),'Resolution',300)
     
+    ax = gca;
     % save as svg for figure making
     matrix = resultMatrix;
     f = figure('visible', 'off');
     colormap(parula);
-    image(matrix, 'CDataMapping', 'scaled');
+    % ax = axes(size(resultMatrix,1),size(resultMatrix,2));
+    imagesc(matrix, 'CDataMapping', 'scaled');
+    colorbar
+    axis square
+    
+
     print(f, '-dsvg', fullfile(LUTpathname, [filename '.svg']));
 
 
