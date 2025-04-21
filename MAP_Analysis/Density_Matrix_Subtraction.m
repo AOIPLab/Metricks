@@ -171,7 +171,7 @@ if size(data{1}) == size(data{2})
     % save averaged matrix
     n1 = split(baseName1, '_0p');
     n2 = split(baseName2, '_0p');
-    filename = [n1{1} '_MINUS_' n2{1} '_' date];
+    filename = [n2{1} '_MINUS_' n1{1} '_' date];
     csvwrite(fullfile(LUTpathname, [filename '.csv']),resultMatrix);
     
     % save difference image
