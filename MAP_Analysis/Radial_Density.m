@@ -1,3 +1,15 @@
+% Radial Density
+% AOIP
+% Created by: Jenna Grieshop
+% Date created: 4/22/2025
+%
+% Description: Script that takes density matrix (i.e. averaged bound
+% density map) and calculates average density radially from the CDC.
+%
+% Input: The density matrix, CDC LUT file (file name, CDC coordinates)
+%
+% Output: csv with average radial densities going out from the center.
+%
 
 
 
@@ -7,18 +19,19 @@ close all
 clc
 
 scaleFactor = 0.25; %umpp
+spacing = 5; %5 microns
 
 basepath = which('Radial_Density.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
-% select matrix
+% Select matrix
 [filename, pathname] = uigetfile('*.csv', 'MultiSelect', 'off');
 
-% load in the data
+% Load in the matrix
 data = readmatrix(fullfile(pathname,filename));
 
-% select and load in filename of the LUT with CDC
+% Select and load in filename of the LUT with CDC
 [LUTfilename, LUTpathname] = uigetfile('*.csv', 'Select file with CDC coords', pathname);
 
 % Load in the LUT file
@@ -27,34 +40,56 @@ data = readmatrix(fullfile(pathname,filename));
 % Find the information from the LUT file for the data                                
 LUTindex=find( cellfun(@(s) contains(filename,s ), lutData{1} ) );
 
+% Extract cdc from the lut file
 CDC_x = lutData{2}(LUTindex);
 CDC_y = lutData{3}(LUTindex);
 CDC = [CDC_y, CDC_x];
 
+% Warn user if the matrix is not square
 if CDC_x ~= CDC_y
     warning('CDC is not centered in matrix');
 end
 
-px_num = (1/scaleFactor)*5;
+% Figure out how many pixels are in the selected spacing (microns)
+px_num = (1/scaleFactor)*spacing;
 dimension = size(data, 1);
 
+% Determine how many eccentricities to take a density reading at
 points = floor((dimension/px_num)/2);
 
+% go through getting 
 for i=1:points
 
-    [X,Y]=meshgrid(1:size(data,1),1:size(data,2));
-    disk_locations=sqrt((X-CDC(1)).^2+(Y-CDC(2)).^2) <= (px_num*i);
+    % Create Meshgrid of the matrix
+    [X,Y] = meshgrid(1:size(data,1),1:size(data,2));
+    % Distance formula to get all data in meshgrid within radius of
+    % eccentricity (5 microns * iteration)
+    disk_locations = sqrt((X-CDC(1)).^2+(Y-CDC(2)).^2) <= (px_num*i);
     
+    % Get the outer boundary of the circle (1 pixel)
     outerboundary = imdilate(disk_locations,strel('disk',1))&~disk_locations;
     outerboundary = outerboundary';
     imshow(outerboundary)
     
-    res1 = data(outerboundary==1);
-    Avg(i) = mean(res1);
+    % Get values from the matrix in the locations of the circle boundary
+    density_ring = data(outerboundary==1);
+    % Get average of the density ring
+    Avg(i) = mean(density_ring);
 
 
 end
 
 plot(Avg);
+
+% Format data to be saved
 Avg = Avg';
+header = {filename};
+final_results = [header; num2cell(Avg)];
+result_fname =  fullfile(LUTpathname, [filename(1:end-4), '_' num2str(spacing) '_um_spacing_radial_density.csv']);
+
+% Save csv
+writecell(final_results, result_fname);
+
+
+
 
