@@ -324,6 +324,8 @@ colormap(vmap);
 colorbar; 
 
 saveas(gcf,fullfile(LUTpathname, ['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+print('-dsvg', fullfile(LUTpathname, ['Averaged_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.svg']));
+
 
 % Display average of just overlapping map
 dispfig=figure(2); 
@@ -333,6 +335,8 @@ colormap(vmap);
 colorbar; 
 
 saveas(gcf,fullfile(LUTpathname, ['Averaged_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+print('-dsvg', fullfile(LUTpathname, ['Averaged_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.svg']));
+
 
 % Display average of overlapping N subjects
 dispfig=figure(3); 
@@ -342,6 +346,7 @@ colormap(vmap);
 colorbar; 
 
 saveas(gcf,fullfile(LUTpathname, ['Averaged_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+print('-dsvg', fullfile(LUTpathname, ['Averaged_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.svg']));
 
 
 % Display stdev of everything map
@@ -352,6 +357,8 @@ colormap(vmap);
 colorbar; 
 
 saveas(gcf,fullfile(LUTpathname, ['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+print('-dsvg', fullfile(LUTpathname, ['Stdev_ALL_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.svg']));
+
 
 % Display stdev of just overlapping map
 dispfig=figure(5); 
@@ -361,6 +368,8 @@ colormap(vmap);
 colorbar; 
 
 saveas(gcf,fullfile(LUTpathname, ['Stdev_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
+print('-dsvg', fullfile(LUTpathname, ['Stdev_'  num2str(numFiles) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.svg']));
+
 
 % Display stdev of just overlapping map of N
 dispfig=figure(6); 
@@ -370,7 +379,7 @@ colormap(vmap);
 colorbar; 
 
 saveas(gcf,fullfile(LUTpathname, ['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.png']));
-
+print('-dsvg', fullfile(LUTpathname, ['Stdev_' num2str(N) '_bound_density_map_' datestr(now, 'yyyymmdd') '_fig.svg']));
 
 % Display NanCount map
 dispfig=figure(7); 
