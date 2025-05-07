@@ -1,19 +1,14 @@
-% Radial Density Eccentricity
-% AOIP
-% Created by: Jenna Grieshop
-% Date created: 4/21/2025
-%
-% 
-%
-%
 
-clear all;
-close all;
-clc;
+
+
+
+clear all
+close all
+clc
 
 scaleFactor = 0.25; %umpp
 
-basepath = which('Radial_Density_Eccentricity.m');
+basepath = which('Radial_Density.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
@@ -34,34 +29,32 @@ LUTindex=find( cellfun(@(s) contains(filename,s ), lutData{1} ) );
 
 CDC_x = lutData{2}(LUTindex);
 CDC_y = lutData{3}(LUTindex);
+CDC = [CDC_y, CDC_x];
 
 if CDC_x ~= CDC_y
     warning('CDC is not centered in matrix');
 end
 
+px_num = (1/scaleFactor)*5;
 dimension = size(data, 1);
 
-px_num_25um = (1/scaleFactor)*25;
+points = floor((dimension/px_num)/2);
 
-[Tics,Average] = radial_profile(data, px_num_25um);
+for i=1:points
 
-% combine ring averages
-first = 1;
-for i=1:6
-    if first ==1
-        Avg(i) = Average(i);
-        first = 0;
-    else
-        Avg(i) = (Average(i) + Avg(i-1))/2;
-    end
+    [X,Y]=meshgrid(1:size(data,1),1:size(data,2));
+    disk_locations=sqrt((X-CDC(1)).^2+(Y-CDC(2)).^2) <= (px_num*i);
+    
+    outerboundary = imdilate(disk_locations,strel('disk',1))&~disk_locations;
+    outerboundary = outerboundary';
+    imshow(outerboundary)
+    
+    res1 = data(outerboundary==1);
+    Avg(i) = mean(res1);
+
+
 end
 
-
-
-
-
-
-
-
-
+plot(Avg);
+Avg = Avg';
 
