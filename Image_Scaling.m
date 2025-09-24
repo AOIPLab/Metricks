@@ -70,6 +70,8 @@ for i=1:size(fnameList,1)
     elseif roi_size == 600
         new_dim = 2400;
         new_center = 1200;
+    else
+        error("Image size not compatible. Current limits of script require either a 300um, 500um, or 600um image.")
     end
 
     % Load in image
