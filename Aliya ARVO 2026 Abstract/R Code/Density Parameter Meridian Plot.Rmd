@@ -1,0 +1,676 @@
+---
+title: "Density Parameter Meridian Comparisons"
+output: html_document
+date: "2025-12-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(openxlsx)
+library(readr)
+library(gridExtra)
+library(grid)
+
+# ---- VERSION CONTROL ----
+version_number <- 2
+run_date <- format(Sys.Date(), "%m%d%y")
+version_suffix <- paste0("_v", version_number, "_", run_date)
+```
+
+# Part 1: Parameter Comparison Excel
+
+```{r load-parameter-data}
+# ---- Load Horizontal Parameter Data ----
+albinism_horizontal <- read.csv("Albinism_averaged_horizontal_parameter_output_NLS_v3_120425.csv") %>%
+  mutate(Group = "Albinism") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+control_horizontal <- read.csv("Control_averaged_horizontal_parameter_output_NLS_v3_120425.csv") %>%
+  mutate(Group = "Control") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+wolf_horizontal <- read.csv("Wolf_averaged_horizontal_parameter_output_NLS_v3_120425.csv") %>%
+  mutate(Group = "Wolf") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+# ---- Load Vertical Parameter Data ----
+albinism_vertical <- read.csv("Albinism_averaged_vertical_parameter_output_NLS_v3_120425.csv") %>%
+  mutate(Group = "Albinism") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+control_vertical <- read.csv("Control_averaged_vertical_parameter_output_NLS_v3_120425.csv") %>%
+  mutate(Group = "Control") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+wolf_vertical <- read.csv("Wolf_averaged_vertical_parameter_output_NLS_v3_120425.csv") %>%
+  mutate(Group = "Wolf") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+# ---- Load Radial Parameter Data ----
+albinism_radial <- read.csv("Albinism_radial_parameter_output_NLS.csv") %>%
+  filter(Subject != "GS_11902") %>%
+  mutate(Group = "Albinism") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+control_radial <- read.csv("Control_radial_parameter_output_NLS.csv") %>%
+  filter(Subject != "JC_11597") %>%
+  filter(Subject != "JC_11159") %>%
+  filter(Subject != "JC_0905") %>%
+  mutate(Group = "Control") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+
+wolf_radial <- read.csv("Wolf_radial_parameter_output_NLS.csv") %>%
+  mutate(Group = "Wolf") %>%
+  select(Subject, Group, a, b, c, D0, RMSE)
+```
+
+```{r combine-and-export-excel}
+# ---- Combine by Meridian ----
+horizontal_combined <- bind_rows(albinism_horizontal, control_horizontal, wolf_horizontal)
+vertical_combined <- bind_rows(albinism_vertical, control_vertical, wolf_vertical)
+radial_combined <- bind_rows(albinism_radial, control_radial, wolf_radial)
+
+# ---- Create Excel Workbook with 3 Tabs ----
+wb <- createWorkbook()
+
+addWorksheet(wb, "Horizontal")
+writeData(wb, "Horizontal", horizontal_combined)
+
+addWorksheet(wb, "Vertical")
+writeData(wb, "Vertical", vertical_combined)
+
+addWorksheet(wb, "Radial")
+writeData(wb, "Radial", radial_combined)
+
+# Save workbook
+saveWorkbook(wb, paste0("Parameter_Comparison_All_Meridians", version_suffix, ".xlsx"), overwrite = TRUE)
+
+cat("Excel file saved: Parameter_Comparison_All_Meridians", version_suffix, ".xlsx\n")
+```
+
+# Part 2: Panel A Figure - 9 Density Decay Curves
+
+```{r load-density-data}
+# ---- Load Horizontal Raw Density Data ----
+# Albinism
+temporal_albinism <- read.csv("../5-Horizontal Density Comparisons/Temporal_albinism.csv")
+nasal_albinism <- read.csv("../5-Horizontal Density Comparisons/Nasal_albinism.csv")
+
+# Control
+temporal_control <- read.csv("../5-Horizontal Density Comparisons/Temporal_control.csv")
+nasal_control <- read.csv("../5-Horizontal Density Comparisons/Nasal_control.csv")
+
+# Wolf (filter out subjects ending in R)
+temporal_wolf <- read.csv("../5-Horizontal Density Comparisons/Temporal_profile_density.csv")
+nasal_wolf <- read.csv("../5-Horizontal Density Comparisons/Nasal_profile_density.csv")
+
+# ---- Load Vertical Raw Density Data ----
+# Albinism
+superior_albinism <- read.csv("../6-Vertical Density Comparisons/Superior_albinism.csv")
+inferior_albinism <- read.csv("../6-Vertical Density Comparisons/Inferior_albinism.csv")
+
+# Control
+superior_control <- read.csv("../6-Vertical Density Comparisons/Superior_control.csv")
+inferior_control <- read.csv("../6-Vertical Density Comparisons/Inferior_control.csv")
+
+# Wolf (filter out subjects ending in R)
+superior_wolf <- read.csv("../6-Vertical Density Comparisons/Superior_profile_density.csv")
+inferior_wolf <- read.csv("../6-Vertical Density Comparisons/Inferior_profile_density.csv")
+
+# ---- Load Radial Raw Density Data ----
+albinism_radial_density <- read.csv("../4-Radial Density Comparisons/Albinism_Density_Extractions_Radial.csv")
+control_radial_density <- read.csv("../4-Radial Density Comparisons/Control_Density_Extractions_Radial.csv")
+wolf_radial_density <- read.csv("../4-Radial Density Comparisons/Radial_density_vector.csv")
+```
+
+```{r process-horizontal-data}
+# ---- Process Horizontal Data ----
+
+# Function to ensure data is in long format (Subject, E, D)
+ensure_long_format <- function(df) {
+  # Check if data is already in long format (has Subject, E, D columns)
+  if (all(c("Subject", "E", "D") %in% names(df))) {
+    return(df %>% select(Subject, E, D))
+  }
+  # Check for Eccentricity column (wide format with Eccentricity as first column)
+  if ("Eccentricity" %in% names(df)) {
+    df_long <- df %>%
+      pivot_longer(cols = -Eccentricity, names_to = "Subject", values_to = "D") %>%
+      rename(E = Eccentricity)
+    return(df_long)
+  }
+  # Assume first column is eccentricity (wide format)
+  df_long <- df %>%
+    pivot_longer(cols = -1, names_to = "Subject", values_to = "D")
+  names(df_long)[1] <- "E"
+  return(df_long)
+}
+
+# Filter Wolf subjects (remove those ending in R) - for long format data
+filter_wolf_long <- function(df) {
+  df %>% filter(!grepl("R$", Subject))
+}
+
+# Filter Wolf subjects (remove those ending in R) - for wide format data
+filter_wolf_wide <- function(df) {
+  subject_cols <- names(df)[!names(df) %in% c("E", "Eccentricity")]
+  keep_cols <- subject_cols[!grepl("R$", subject_cols)]
+  df %>% select(any_of(c("E", "Eccentricity")), all_of(keep_cols))
+}
+
+# Process Albinism Horizontal (data is in long format: Subject, E, D)
+temporal_alb_long <- temporal_albinism %>% mutate(Region = "Temporal")
+nasal_alb_long <- nasal_albinism %>% mutate(Region = "Nasal")
+albinism_horiz <- bind_rows(temporal_alb_long, nasal_alb_long) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Albinism", Meridian = "Horizontal")
+
+# Process Control Horizontal (data is in long format: Subject, E, D)
+temporal_ctrl_long <- temporal_control %>% mutate(Region = "Temporal")
+nasal_ctrl_long <- nasal_control %>% mutate(Region = "Nasal")
+control_horiz <- bind_rows(temporal_ctrl_long, nasal_ctrl_long) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Control", Meridian = "Horizontal")
+
+# Process Wolf Horizontal (filter out R subjects, different column names)
+# Wolf data has: Subject, Eccentricity_um, Density
+temporal_wolf_filtered <- temporal_wolf %>% 
+  filter(!grepl("R$", Subject)) %>%
+  rename(E = Eccentricity_um, D = Density)
+nasal_wolf_filtered <- nasal_wolf %>% 
+  filter(!grepl("R$", Subject)) %>%
+  rename(E = Eccentricity_um, D = Density)
+temporal_wolf_long <- temporal_wolf_filtered %>% mutate(Region = "Temporal")
+nasal_wolf_long <- nasal_wolf_filtered %>% mutate(Region = "Nasal")
+wolf_horiz <- bind_rows(temporal_wolf_long, nasal_wolf_long) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Wolf", Meridian = "Horizontal")
+```
+
+```{r process-vertical-data}
+# ---- Process Vertical Data ----
+
+# Process Albinism Vertical (data is in long format: Subject, E, D)
+superior_alb_long <- superior_albinism %>% mutate(Region = "Superior")
+inferior_alb_long <- inferior_albinism %>% mutate(Region = "Inferior")
+albinism_vert <- bind_rows(superior_alb_long, inferior_alb_long) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Albinism", Meridian = "Vertical")
+
+# Process Control Vertical (data is in long format: Subject, E, D)
+superior_ctrl_long <- superior_control %>% mutate(Region = "Superior")
+inferior_ctrl_long <- inferior_control %>% mutate(Region = "Inferior")
+control_vert <- bind_rows(superior_ctrl_long, inferior_ctrl_long) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Control", Meridian = "Vertical")
+
+# Process Wolf Vertical (filter out R subjects, different column names)
+# Wolf data has: Subject, Eccentricity_um, Density
+superior_wolf_filtered <- superior_wolf %>% 
+  filter(!grepl("R$", Subject)) %>%
+  rename(E = Eccentricity_um, D = Density)
+inferior_wolf_filtered <- inferior_wolf %>% 
+  filter(!grepl("R$", Subject)) %>%
+  rename(E = Eccentricity_um, D = Density)
+superior_wolf_long <- superior_wolf_filtered %>% mutate(Region = "Superior")
+inferior_wolf_long <- inferior_wolf_filtered %>% mutate(Region = "Inferior")
+wolf_vert <- bind_rows(superior_wolf_long, inferior_wolf_long) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Wolf", Meridian = "Vertical")
+```
+
+```{r process-radial-data}
+# ---- Process Radial Data ----
+
+# Albinism and Control radial data is in wide format with Eccentricity as first column
+# Wolf radial data is in long format with: Subject, Eccentricity_um, Density
+
+# Process Albinism Radial (wide format)
+albinism_rad <- albinism_radial_density %>%
+  pivot_longer(cols = -Eccentricity, names_to = "Subject", values_to = "D") %>%
+  rename(E = Eccentricity) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Albinism", Meridian = "Radial")
+
+# Process Control Radial (wide format)
+control_rad <- control_radial_density %>%
+  pivot_longer(cols = -Eccentricity, names_to = "Subject", values_to = "D") %>%
+  rename(E = Eccentricity) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Control", Meridian = "Radial")
+
+# Process Wolf Radial (long format, filter out R subjects)
+# Wolf data has: Subject, Eccentricity_um, Density
+wolf_rad <- wolf_radial_density %>%
+  filter(!grepl("R$", Subject)) %>%
+  rename(E = Eccentricity_um, D = Density) %>%
+  group_by(E) %>%
+  summarise(D_mean = mean(D, na.rm = TRUE), D_sd = sd(D, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Group = "Wolf", Meridian = "Radial")
+```
+
+```{r combine-all-data}
+# ---- Combine All Data for Plotting ----
+all_density_data <- bind_rows(
+  albinism_horiz, control_horiz, wolf_horiz,
+  albinism_vert, control_vert, wolf_vert,
+  albinism_rad, control_rad, wolf_rad
+)
+
+# Create a combined label for plotting
+all_density_data <- all_density_data %>%
+  mutate(
+    Group_Meridian = paste(Group, Meridian, sep = " - "),
+    # Convert density to thousands (cones/mm² · 10³)
+    D_mean_k = D_mean / 1000,
+    D_sd_k = D_sd / 1000
+  )
+```
+
+```{r create-panel-a-figure, fig.width=10, fig.height=8}
+# ---- Define Colors ----
+# Colors: Albinism = red tones, Control = blue tones, Wolf = green tones
+# 3 shades per group: lightest = Horizontal, medium = Radial, darkest = Vertical
+# All line types are solid
+color_palette <- c(
+  # Albinism - Reds (light to dark)
+  "Albinism - Horizontal" = "#FCBBA1",
+  "Albinism - Radial" = "#EF3B2C",
+  "Albinism - Vertical" = "#99000D",
+  # Control - Blues (light to dark)
+  "Control - Horizontal" = "#9ECAE1",
+  "Control - Radial" = "#3182BD",
+  "Control - Vertical" = "#08306B",
+  # Wolf - Greens (light to dark)
+  "Wolf - Horizontal" = "#A1D99B",
+  "Wolf - Radial" = "#31A354",
+  "Wolf - Vertical" = "#00441B"
+)
+
+linetype_palette <- c(
+  "Albinism - Radial" = "solid",
+  "Albinism - Horizontal" = "solid",
+  "Albinism - Vertical" = "solid",
+  "Control - Radial" = "solid",
+  "Control - Horizontal" = "solid",
+  "Control - Vertical" = "solid",
+  "Wolf - Radial" = "solid",
+  "Wolf - Horizontal" = "solid",
+  "Wolf - Vertical" = "solid"
+)
+
+# ---- Create Panel A Figure ----
+panel_a <- ggplot(all_density_data, aes(x = E, y = D_mean_k, color = Group_Meridian)) +
+  geom_line(linewidth = 0.8) +
+  scale_color_manual(values = color_palette, name = "Group - Meridian") +
+  labs(
+    title = "Panel A: Cone Density Decay Across Meridians",
+    x = "Eccentricity (μm)",
+    y = expression("Cone density (cones/mm"^2 ~ "·10"^3*")")
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 11, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold")
+  ) +
+  coord_cartesian(xlim = c(0, 250), ylim = c(40, 220))
+
+print(panel_a)
+
+# Save the figure
+ggsave(
+  filename = paste0("Panel_A_Density_Decay_9_Curves", version_suffix, ".png"),
+  plot = panel_a,
+  width = 12,
+  height = 8,
+  dpi = 300
+)
+
+cat("Figure saved: Panel_A_Density_Decay_9_Curves", version_suffix, ".png\n")
+```
+
+```{r summary-stats}
+# ---- Summary Statistics for Each Group-Meridian Combination ----
+summary_stats <- all_density_data %>%
+  group_by(Group, Meridian) %>%
+  summarise(
+    n_points = n(),
+    E_min = min(E, na.rm = TRUE),
+    E_max = max(E, na.rm = TRUE),
+    D_mean_at_0 = D_mean[E == min(E)],
+    D_mean_at_max = D_mean[E == max(E)],
+    .groups = "drop"
+  )
+
+print(summary_stats)
+```
+
+# Part 3: Panel B - Residual Plots by Group
+
+```{r prepare-individual-data-for-residuals}
+library(minpack.lm)
+
+# ---- Prepare Individual Subject Data (not aggregated) ----
+# We need individual data points to calculate SD of residuals
+
+# Albinism Horizontal - individual data
+albinism_horiz_indiv <- bind_rows(
+  temporal_albinism %>% mutate(Region = "Temporal"),
+  nasal_albinism %>% mutate(Region = "Nasal")
+) %>%
+  select(Subject, E, D) %>%
+  mutate(Group = "Albinism", Meridian = "Horizontal")
+
+# Control Horizontal - individual data
+control_horiz_indiv <- bind_rows(
+  temporal_control %>% mutate(Region = "Temporal"),
+  nasal_control %>% mutate(Region = "Nasal")
+) %>%
+  select(Subject, E, D) %>%
+  mutate(Group = "Control", Meridian = "Horizontal")
+
+# Wolf Horizontal - individual data (filter out R subjects)
+wolf_horiz_indiv <- bind_rows(
+  temporal_wolf %>% filter(!grepl("R$", Subject)) %>% rename(E = Eccentricity_um, D = Density),
+  nasal_wolf %>% filter(!grepl("R$", Subject)) %>% rename(E = Eccentricity_um, D = Density)
+) %>%
+  select(Subject, E, D) %>%
+  mutate(Group = "Wolf", Meridian = "Horizontal")
+
+# Albinism Vertical - individual data
+albinism_vert_indiv <- bind_rows(
+  superior_albinism %>% mutate(Region = "Superior"),
+  inferior_albinism %>% mutate(Region = "Inferior")
+) %>%
+  select(Subject, E, D) %>%
+  mutate(Group = "Albinism", Meridian = "Vertical")
+
+# Control Vertical - individual data
+control_vert_indiv <- bind_rows(
+  superior_control %>% mutate(Region = "Superior"),
+  inferior_control %>% mutate(Region = "Inferior")
+) %>%
+  select(Subject, E, D) %>%
+  mutate(Group = "Control", Meridian = "Vertical")
+
+# Wolf Vertical - individual data (filter out R subjects)
+wolf_vert_indiv <- bind_rows(
+  superior_wolf %>% filter(!grepl("R$", Subject)) %>% rename(E = Eccentricity_um, D = Density),
+  inferior_wolf %>% filter(!grepl("R$", Subject)) %>% rename(E = Eccentricity_um, D = Density)
+) %>%
+  select(Subject, E, D) %>%
+  mutate(Group = "Wolf", Meridian = "Vertical")
+
+# Albinism Radial - individual data (wide to long)
+albinism_rad_indiv <- albinism_radial_density %>%
+  pivot_longer(cols = -Eccentricity, names_to = "Subject", values_to = "D") %>%
+  rename(E = Eccentricity) %>%
+  filter(!is.na(D)) %>%
+  mutate(Group = "Albinism", Meridian = "Radial")
+
+# Control Radial - individual data (wide to long)
+control_rad_indiv <- control_radial_density %>%
+  pivot_longer(cols = -Eccentricity, names_to = "Subject", values_to = "D") %>%
+  rename(E = Eccentricity) %>%
+  filter(!is.na(D)) %>%
+  mutate(Group = "Control", Meridian = "Radial")
+
+# Wolf Radial - individual data (filter out R subjects)
+wolf_rad_indiv <- wolf_radial_density %>%
+  filter(!grepl("R$", Subject)) %>%
+  rename(E = Eccentricity_um, D = Density) %>%
+  filter(!is.na(D)) %>%
+  mutate(Group = "Wolf", Meridian = "Radial")
+
+# Combine all individual data
+all_indiv_data <- bind_rows(
+  albinism_horiz_indiv, control_horiz_indiv, wolf_horiz_indiv,
+  albinism_vert_indiv, control_vert_indiv, wolf_vert_indiv,
+  albinism_rad_indiv, control_rad_indiv, wolf_rad_indiv
+)
+
+# Diagnostic: Check counts per group-meridian
+cat("Data counts per Group-Meridian:\n")
+print(all_indiv_data %>% group_by(Group, Meridian) %>% summarise(n = n(), .groups = "drop"))
+```
+
+```{r fit-sigmoid-and-calculate-residuals}
+# ---- Fit Sigmoid to Mean Data, Calculate Residuals on Individual Points ----
+
+# Function to fit sigmoid to mean data and return parameters
+fit_sigmoid_to_mean <- function(data_subset) {
+  mean_data <- data_subset %>%
+    group_by(E) %>%
+    summarise(D_mean = mean(D, na.rm = TRUE), .groups = "drop")
+  
+  E <- mean_data$E
+  D <- mean_data$D_mean
+  D0_start <- max(D, na.rm = TRUE)
+  
+  tryCatch({
+    fit <- nlsLM(
+      D ~ D0 / ((1 + (E / a)^b)^c),
+      data = data.frame(E = E, D = D),
+      start = list(a = 100, b = 2, c = 1, D0 = D0_start),
+      lower = c(a = 0.01, b = 1, c = 0, D0 = 0),
+      upper = c(a = 50000, b = 200, c = 500, D0 = D0_start * 2),
+      control = nls.lm.control(maxiter = 500)
+    )
+    coef(fit)
+  }, error = function(e) {
+    cat("Fit failed for group-meridian\n")
+    c(a = NA, b = NA, c = NA, D0 = NA)
+  })
+}
+
+# Sigmoid function for prediction
+sigmoid_func <- function(E, a, b, c, D0) {
+  D0 / ((1 + (E / a)^b)^c)
+}
+
+# Calculate residuals for each individual point using fitted parameters
+calculate_residuals <- function(data_subset) {
+  params <- fit_sigmoid_to_mean(data_subset)
+  
+  if (any(is.na(params))) {
+    return(data_subset %>% mutate(D_fitted = NA, Residual_pct = NA))
+  }
+  
+  data_subset %>%
+    mutate(
+      D_fitted = sigmoid_func(E, params["a"], params["b"], params["c"], params["D0"]),
+      Residual_pct = abs((D - D_fitted) / D) * 100
+    )
+}
+
+# Apply to each group-meridian combination
+residual_data_indiv <- all_indiv_data %>%
+  group_by(Group, Meridian) %>%
+  group_modify(~ calculate_residuals(.x)) %>%
+  ungroup()
+
+# Aggregate residuals: mean and SD per eccentricity for each group-meridian
+residual_summary <- residual_data_indiv %>%
+  filter(!is.na(Residual_pct)) %>%
+  group_by(Group, Meridian, E) %>%
+  summarise(
+    Residual_mean = mean(Residual_pct, na.rm = TRUE),
+    Residual_sd = sd(Residual_pct, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # Replace NA SD with 0 (for single observations)
+    Residual_sd = ifelse(is.na(Residual_sd), 0, Residual_sd),
+    Residual_lower = pmax(0, Residual_mean - Residual_sd),
+    Residual_upper = Residual_mean + Residual_sd
+  )
+
+# Diagnostic: Check residual summary
+cat("\nResidual summary counts:\n")
+print(residual_summary %>% group_by(Group, Meridian) %>% summarise(n_points = n(), .groups = "drop"))
+```
+
+```{r create-panel-b-albinism, fig.width=10, fig.height=4}
+# ---- Panel B: Albinism Residuals with Ribbon ----
+albinism_residuals <- residual_summary %>% filter(Group == "Albinism")
+
+panel_b_albinism <- ggplot(albinism_residuals, aes(x = E, y = Residual_mean, color = Meridian, fill = Meridian)) +
+  geom_ribbon(aes(ymin = Residual_lower, ymax = Residual_upper), alpha = 0.3, color = NA) +
+  geom_line(linewidth = 1.2) +
+  scale_color_manual(
+    values = c("Horizontal" = "#FCBBA1", "Radial" = "#EF3B2C", "Vertical" = "#99000D"),
+    name = "Meridian"
+  ) +
+  scale_fill_manual(
+    values = c("Horizontal" = "#FCBBA1", "Radial" = "#EF3B2C", "Vertical" = "#99000D"),
+    name = "Meridian"
+  ) +
+  labs(
+    title = "Albinism",
+    x = "Eccentricity (μm)",
+    y = "Absolute fit residuals [%]"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 11, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold")
+  ) +
+  coord_cartesian(xlim = c(0, 250), ylim = c(0, 10))
+
+print(panel_b_albinism)
+
+ggsave(
+  filename = paste0("Panel_B_Residuals_Albinism", version_suffix, ".png"),
+  plot = panel_b_albinism,
+  width = 10,
+  height = 4,
+  dpi = 300
+)
+```
+
+```{r create-panel-b-control, fig.width=10, fig.height=4}
+# ---- Panel B: Control Residuals with Ribbon ----
+control_residuals <- residual_summary %>% filter(Group == "Control")
+
+panel_b_control <- ggplot(control_residuals, aes(x = E, y = Residual_mean, color = Meridian, fill = Meridian)) +
+  geom_ribbon(aes(ymin = Residual_lower, ymax = Residual_upper), alpha = 0.3, color = NA) +
+  geom_line(linewidth = 1.2) +
+  scale_color_manual(
+    values = c("Horizontal" = "#9ECAE1", "Radial" = "#3182BD", "Vertical" = "#08306B"),
+    name = "Meridian"
+  ) +
+  scale_fill_manual(
+    values = c("Horizontal" = "#9ECAE1", "Radial" = "#3182BD", "Vertical" = "#08306B"),
+    name = "Meridian"
+  ) +
+  labs(
+    title = "Control",
+    x = "Eccentricity (μm)",
+    y = "Absolute fit residuals [%]"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 11, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold")
+  ) +
+  coord_cartesian(xlim = c(0, 250), ylim = c(0, 10))
+
+print(panel_b_control)
+
+ggsave(
+  filename = paste0("Panel_B_Residuals_Control", version_suffix, ".png"),
+  plot = panel_b_control,
+  width = 10,
+  height = 4,
+  dpi = 300
+)
+```
+
+```{r create-panel-b-wolf, fig.width=10, fig.height=4}
+# ---- Panel B: Wolf Residuals with Ribbon ----
+wolf_residuals <- residual_summary %>% filter(Group == "Wolf")
+
+panel_b_wolf <- ggplot(wolf_residuals, aes(x = E, y = Residual_mean, color = Meridian, fill = Meridian)) +
+  geom_ribbon(aes(ymin = Residual_lower, ymax = Residual_upper), alpha = 0.3, color = NA) +
+  geom_line(linewidth = 1.2) +
+  scale_color_manual(
+    values = c("Horizontal" = "#A1D99B", "Radial" = "#31A354", "Vertical" = "#00441B"),
+    name = "Meridian"
+  ) +
+  scale_fill_manual(
+    values = c("Horizontal" = "#A1D99B", "Radial" = "#31A354", "Vertical" = "#00441B"),
+    name = "Meridian"
+  ) +
+  labs(
+    title = "Wolf",
+    x = "Eccentricity (μm)",
+    y = "Absolute fit residuals [%]"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 11, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold")
+  ) +
+  coord_cartesian(xlim = c(0, 250), ylim = c(0, 10))
+
+print(panel_b_wolf)
+
+ggsave(
+  filename = paste0("Panel_B_Residuals_Wolf", version_suffix, ".png"),
+  plot = panel_b_wolf,
+  width = 10,
+  height = 4,
+  dpi = 300
+)
+```
+
+```{r create-combined-panel-b, fig.width=10, fig.height=10}
+# ---- Combined Panel B with All 3 Groups Stacked ----
+combined_panel_b <- grid.arrange(
+  panel_b_albinism, 
+  panel_b_control, 
+  panel_b_wolf, 
+  ncol = 1,
+  top = textGrob("Panel B: Absolute Fit Residuals by Group", 
+                 gp = gpar(fontsize = 16, fontface = "bold"))
+)
+
+ggsave(
+  filename = paste0("Panel_B_Residuals_Combined", version_suffix, ".png"),
+  plot = combined_panel_b,
+  width = 10,
+  height = 10,
+  dpi = 300
+)
+
+cat("Panel B figures saved.\n")
+```

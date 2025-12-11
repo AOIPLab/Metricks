@@ -1,0 +1,107 @@
+---
+title: "Reformat Datasets"
+output: html_document
+date: "2025-11-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load Vertical}
+data_vertical_control<- read.csv("Control_Density_Extractions_Vertical.csv")
+data_vertical_albinism <- read.csv("Albinism_Density_Extractions_Vertical.csv")
+```
+
+```{r}
+assign_region <- function(df) {
+
+  # 1. Assign region based on sign of E
+  df <- df %>% 
+    mutate(
+      Region = ifelse(Eccentricity_um >= 0, "Superior", "Inferior")
+    )
+
+  # 2. Reverse density ONLY for Inferior (E < 0) scan chunks
+  df <- df %>%
+    group_by(Subject, Region) %>%
+    mutate(
+      Density = if (all(Eccentricity_um < 0)) rev(Density) else Density
+    ) %>%
+    ungroup()
+
+  return(df)
+}
+
+
+data_vertical_albinism <- assign_region(data_vertical_albinism)
+data_vertical_control  <- assign_region(data_vertical_control)
+```
+
+```{r split control}
+
+long_df <- data_vertical_control %>%
+  mutate(
+    E_signed = Eccentricity_um,   # original signed
+    E = abs(Eccentricity_um),     # always positive for fitting
+    D = Density                   # clean column
+  ) %>%
+  group_by(Subject, Region) %>%
+  mutate(
+    # Flip inferior densities so curve shapes match superior
+    D_fit = ifelse(Region == "Inferior", rev(D), D)
+  ) %>%
+  ungroup()
+
+plot(
+  data_vertical_control$Eccentricity_um,
+  data_vertical_control$Density,
+  xlab = "Eccentricity (µm)",
+  ylab = "Density (D)",
+  main = "Control Vertical Density Profile",
+  pch = 19,
+  col = "blue"
+)
+
+# Assuming `long_df` already has E, D, Region columns
+superior_df <- long_df %>% filter(Region == "Superior")
+inferior_df <- long_df %>% filter(Region == "Inferior")
+
+write.csv(superior_df, "Superior_control_Extractions.csv")
+write.csv(inferior_df, "Inferior_control_Extractions.csv")
+```
+
+```{r split albinism}
+
+long_df <- data_vertical_albinism %>%
+  mutate(
+    E_signed = Eccentricity_um,   # original signed
+    E = abs(Eccentricity_um),     # always positive for fitting
+    D = Density                   # clean column
+  ) %>%
+  group_by(Subject, Region) %>%
+  mutate(
+    # Flip inferior densities so curve shapes match superior
+    D_fit = ifelse(Region == "Inferior", rev(D), D)
+  ) %>%
+  ungroup()
+
+plot(
+  data_vertical_albinism$Eccentricity_um,
+  data_vertical_albinism$Density,
+  xlab = "Eccentricity (µm)",
+  ylab = "Density (D)",
+  main = "Albinism Vertical Density Profile",
+  pch = 19,
+  col = "blue"
+)
+
+# Assuming `long_df` already has E, D, Region columns
+superior_df <- long_df %>% filter(Region == "Superior")
+inferior_df <- long_df %>% filter(Region == "Inferior")
+
+write.csv(superior_df, "Superior_albinism_Extractions.csv")
+write.csv(inferior_df, "Inferior_albinism_Extractions.csv")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

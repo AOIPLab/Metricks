@@ -1,0 +1,1426 @@
+---
+title: "Foveal Cone Density Modeling with Plotting"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+date: "2025-11-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---- VERSION CONTROL ----
+# Update this number each time you run the script
+# Format: _vX_MMDDYY will be appended to Excel filenames
+version_number <- 3
+run_date <- format(Sys.Date(), "%m%d%y")
+version_suffix <- paste0("_v", version_number, "_", run_date)
+```
+
+This first part is analyzing average density values of ours, and averages Wolf's radial density. It then fits a nonlinear least squares regression model on them and defines optimal parameters.
+```{r define model}
+library(minpack.lm)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(zoo)
+library(openxlsx)
+library(readxl)
+
+data_temporal_albinism <- read.csv("Temporal_albinism.csv") %>%
+  filter(Subject != "GS_11902")
+data_nasal_albinism <- read.csv("Nasal_albinism.csv") %>%
+  filter(Subject != "GS_11902")
+data_temporal_control <- read.csv("Temporal_control.csv") %>%
+  filter(Subject != "JC_11597") %>%
+  filter(Subject != "JC_11159") %>%
+  filter(Subject != "JC_0905")
+data_nasal_control <- read.csv("Nasal_control.csv") %>%
+  filter(Subject != "JC_11597") %>%
+  filter(Subject != "JC_11159") %>%
+  filter(Subject != "JC_0905")
+```
+
+
+Final Attempt at Parameter Outputs
+
+```{r sigmoid - nlsM for RSs}
+
+# ---- Function to fit sigmoid using nonlinear least squares ----
+library(minpack.lm)
+
+fit_sigmoid_nls_rss <- function(df) {
+  
+  # Fixed D0: first point (E=0) or max(D) if missing
+  D0_val <- ifelse(any(df$E == 0), df$D[df$E == 0][1], max(df$D))
+  
+  # Sigmoid model
+  sigmoid_formula <- D ~ D0_val / ((1 + (E / a)^b)^c)
+  
+  # Starting values
+  start_vals <- list(a = 50, b = 2, c = 0.5)
+  
+  # Fit model using nonlinear least squares
+  fit <- tryCatch(
+    nlsLM(
+      formula = sigmoid_formula,
+      data = df,
+      start = start_vals,
+      lower = c(a = 0.01, b = 1, c = 0),
+      upper = c(a = 50000, b = 200, c = 500),
+      control = nls.lm.control(maxiter = 1000)
+    ),
+    error = function(e) NULL
+  )
+  
+  # If fit fails
+  if (is.null(fit)) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA),
+      RSS    = NA,
+      RMSE=NA,
+      D0     = D0_val,
+      model_fun = function(E, a, b, c) rep(NA, length(E))
+    ))
+  }
+  
+  # Extract parameters
+  p <- coef(fit)
+  
+  # Compute RSS+RMSE directly from residuals stored in fit
+  rss_val <- sum(residuals(fit)^2)
+  rmse_val <- sqrt(sum(residuals(fit)^2) / nrow(df))
+  
+  # Model function for plotting
+  model_fun <- function(E, a, b, c) {
+    D0_val / ((1 + (E / a)^b)^c)
+  }
+  
+  list(
+    params = p,
+    RSS    = rss_val,
+    RMSE    = rmse_val,
+    D0     = D0_val,
+    model_fun = model_fun
+  )
+}
+```
+
+```{r albinism nasal}
+# ---- Prepare long data ----
+
+long_df <- data_nasal_albinism %>%
+  mutate(
+    E = E,      # NEW: fitting eccentricity
+    D = D         # clean naming
+  ) %>%
+  select(Subject, E, D)
+
+
+# ---- Create plots folder ----
+plots_dir <- "Albinism Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_nasal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Albinism_nasal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+albinism_nasal_parameters<-master_df_nls
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Albinism_nasal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+albinism_parameters<-master_df_nls
+#plot density parameters
+
+parametersAInf <- albinism_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pAlbinism<-ggplot(parametersAInf, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for nasal Albinism Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "albinism_nasal_parameter_densities.png"),
+  plot = pAlbinism,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+```{r temporal}
+# ---- Prepare long data ----
+
+long_df <- data_temporal_albinism %>%
+  mutate(
+    E = E,      # NEW: fitting eccentricity
+    D = D         # clean naming
+  ) %>%
+  select(Subject, E, D)
+
+
+# ---- Create plots folder ----
+plots_dir <- "Albinism Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_temporal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Albinism_temporal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+albinism_temporal_parameters<-master_df_nls
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Albinism_temporal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+albinism_parameters<-master_df_nls
+#plot density parameters
+
+parametersASup <- albinism_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pAlbinism<-ggplot(parametersASup, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for temporal Albinism Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "albinism_temporal_parameter_densities.png"),
+  plot = pAlbinism,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+```{r plot combined parameter density}
+# Add Region labels
+parametersASup$Region <- "Temporal"
+parametersAInf$Region <- "Nasal"
+
+# Combine both
+parametersA <- rbind(parametersASup, parametersAInf)
+
+# Combined density plot
+pAlbinismCombined <- ggplot(parametersA, aes(x = Value, fill = Region)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(
+    title = "Density Plots for Albinism Parameters (temporal vs nasal)",
+    x = "Value",
+    y = "Density"
+  ) +
+  scale_fill_manual(values = c("Temporal" = "skyblue", "Nasal" = "orange"))
+
+# Save the plot
+ggsave(
+  filename = file.path(plots_dir, "albinism_parameter_densities_combined.png"),
+  plot = pAlbinismCombined,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+
+```{r control nasal}
+# ---- Prepare long data ----
+
+long_df <- data_nasal_control %>%
+  mutate(
+    E = E,      # NEW: fitting eccentricity
+    D = D         # clean naming
+  ) %>%
+  select(Subject, E, D)
+
+
+# ---- Create plots folder ----
+plots_dir <- "Control Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_nasal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Control_nasal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+control_nasal_parameters<-master_df_nls
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Control_nasal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+control_parameters<-master_df_nls
+#plot density parameters
+
+parametersAInf <- control_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pControl<-ggplot(parametersAInf, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for nasal Control Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "control_nasal_parameter_densities.png"),
+  plot = pControl,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+```{r temporal}
+# ---- Prepare long data ----
+
+long_df <- data_temporal_control %>%
+  mutate(
+    E = E,      # NEW: fitting eccentricity
+    D = D         # clean naming
+  ) %>%
+  select(Subject, E, D)
+
+
+# ---- Create plots folder ----
+plots_dir <- "Control Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_temporal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Control_temporal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+control_temporal_parameters<-master_df_nls
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Control_temporal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+control_parameters<-master_df_nls
+#plot density parameters
+
+parametersASup <- control_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pControl<-ggplot(parametersASup, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for temporal Control Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "control_temporal_parameter_densities.png"),
+  plot = pControl,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+```{r plot combined parameter density}
+# Add Region labels
+parametersASup$Region <- "Temporal"
+parametersAInf$Region <- "Nasal"
+
+# Combine both
+parametersA <- rbind(parametersASup, parametersAInf)
+
+# Combined density plot
+pControlCombined <- ggplot(parametersA, aes(x = Value, fill = Region)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(
+    title = "Density Plots for Control Parameters (temporal vs nasal)",
+    x = "Value",
+    y = "Density"
+  ) +
+  scale_fill_manual(values = c("Temporal" = "skyblue", "Nasal" = "orange"))
+
+# Save the plot
+ggsave(
+  filename = file.path(plots_dir, "control_parameter_densities_combined.png"),
+  plot = pControlCombined,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+```{r wolf}
+
+```
+
+```{r Export Summary}
+plots_dir <- "Parameter Summaries"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Summary statistics ----
+library(openxlsx)
+
+### --- Your datasets ---
+datasets <- list(
+  wolf    = wolf_parameters,
+  control = control_parameters,
+  albinism     = albinism_parameters
+)
+
+
+### --- Function to compute CI limits for the mean ---
+mean_ci <- function(values, level = 0.95) {
+  n <- sum(!is.na(values))
+  m <- mean(values, na.rm = TRUE)
+  s <- sd(values, na.rm = TRUE)
+  
+  if (n < 2 || is.na(s)) {
+    return(c(lower = NA, upper = NA))
+  }
+  
+  error <- qt((1 + level)/2, df = n - 1) * s / sqrt(n)
+  
+  c(lower = m - error, upper = m + error)
+}
+
+### --- Function to summarize one dataset ---
+summarize_dataset <- function(df) {
+  
+  numeric_vars <- c("a", "b", "c", "D0", "RMSE", "RSS")
+  
+  stats <- lapply(numeric_vars, function(var) {
+    vals <- df[[var]]
+    m <- mean(vals, na.rm = TRUE)
+    sd_val <- sd(vals, na.rm = TRUE)
+    min_val <- min(vals, na.rm = TRUE)
+    max_val <- max(vals, na.rm = TRUE)
+    n_val <- length(unique(df$Subject))
+    ci <- mean_ci(vals, level = 0.95)
+    
+    c(
+      Mean = m,
+      SD = sd_val,
+      Min = min_val,
+      Max = max_val,
+      N = n_val,
+      CI_lower = ci[1],
+      CI_upper = ci[2]
+    )
+  })
+  
+  stats_df <- as.data.frame(do.call(cbind, stats))
+  colnames(stats_df) <- numeric_vars
+  stats_df$Statistic <- rownames(stats_df)
+  stats_df <- stats_df[, c("Statistic", numeric_vars)]
+  
+  rownames(stats_df) <- NULL
+  return(stats_df)
+}
+
+### --- Create Excel workbook ---
+wb <- createWorkbook()
+
+### --- Add one sheet per dataset ---
+for (nm in names(datasets)) {
+  
+  summary_df <- summarize_dataset(datasets[[nm]])
+  
+  # Round values except N
+  for (col in names(summary_df)) {
+    if (col != "Statistic") {
+      summary_df[[col]] <- round(summary_df[[col]], 3)
+    }
+  }
+  
+  addWorksheet(wb, nm)
+  writeData(wb, nm, summary_df)
+}
+
+### --- Save workbook ---
+saveWorkbook(wb, file = paste0("Parameter Summaries/Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
+```
+
+```{r t tests - needs variable name fixing}
+a<-wilcox.test(wolf_parameters$a, control_parameters$a)
+b<-wilcox.test(wolf_parameters$b, control_parameters$b)
+c<-wilcox.test(wolf_parameters$c, control_parameters$c)
+d<-wilcox.test(wolf_parameters$D0, control_parameters$D0)
+e<-wilcox.test(wolf_parameters$RMSE, control_parameters$RMSE)
+ttest_control_wolf<-cbind(a,b,c,d,e)
+colnames(ttest_control_wolf) <- c("a", "b", "c", "D0", "RMSE")
+write.csv(ttest_control_wolf, paste0("Parameter Summaries/Wilcoxin Test Control v Wolf", version_suffix, ".csv"), row.names = TRUE)
+
+a<-wilcox.test(albinism_parameters$a, control_parameters$a)
+b<-wilcox.test(albinism_parameters$b, control_parameters$b)
+c<-wilcox.test(albinism_parameters$c, control_parameters$c)
+d<-wilcox.test(albinism_parameters$D0, control_parameters$D0)
+e<-wilcox.test(albinism_parameters$RMSE, control_parameters$RMSE)
+ttest_control_albinism<-cbind(a,b,c,d,e)
+colnames(ttest_control_albinism) <- c("a", "b", "c", "D0", "RMSE")
+write.csv(ttest_control_albinism, paste0("Parameter Summaries/Wilcoxin Test Albinism v Control", version_suffix, ".csv"), row.names = TRUE)
+```
+
+```{r parameter density and violin plots}
+
+ggsave(
+  filename = file.path(plots_dir, "wolf_parameter_densities.png"),
+  plot = pWolf,
+  width = 10,
+  height = 8,
+  dpi = 300)
+ggsave(
+  filename = file.path(plots_dir, "control_parameter_densities.png"),
+  plot = pControl,
+  width = 10,
+  height = 8,
+  dpi = 300)
+ggsave(
+  filename = file.path(plots_dir, "albinism_parameter_densities.png"),
+  plot = pAlbinism,
+  width = 10,
+  height = 8,
+  dpi = 300)
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Combine datasets into one long-format dataframe
+datasets_long <- bind_rows(
+  wolf_parameters    %>% mutate(Dataset = "wolf"),
+  control_parameters %>% mutate(Dataset = "control"),
+  albinism_parameters %>% mutate(Dataset = "albinism")
+)
+
+# Variables to plot
+vars_to_plot <- c("a", "b", "c", "RMSE")
+
+# Convert to long format
+df_long <- datasets_long %>%
+  select(all_of(vars_to_plot), Dataset) %>%
+  pivot_longer(
+    cols = all_of(vars_to_plot),
+    names_to = "Variable",
+    values_to = "Value"
+  )
+
+# Violin plot
+combined_violin<-ggplot(df_long, aes(x = Dataset, y = Value, fill = Dataset)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +  # optional: overlay boxplot
+  facet_wrap(~ Variable, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Violin Plots of Variables by Dataset",
+    x = "Dataset",
+    y = "Value"
+  ) +
+  scale_fill_manual(values = c("wolf" = "#1f77b4", "control" = "#ff7f0e", "albinism" = "#2ca02c")) +
+  theme(legend.position = "none")
+
+ggsave(
+  filename = file.path(plots_dir, "violin_all_parameters.png"),
+  plot = combined_violin,
+  dpi = 300)
+
+
+# Individual Violin Plots
+
+for (var in vars_to_plot) {
+  
+  df_var <- df_long %>% filter(Variable == var)
+  
+  # Base violin plot (common to both)
+  p_base <- ggplot(df_var, aes(x = Dataset, y = Value, fill = Dataset)) +
+    geom_violin(trim = FALSE, alpha = 0.6) +
+    geom_boxplot(width = 0.05, fill = "white", outlier.shape = NA) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste("Violin Plot of", var, "by Dataset"),
+      x = "Dataset",
+      y = var
+    ) +
+    scale_fill_manual(values = c("wolf" = "#1f77b4", "control" = "#ff7f0e", "albinism" = "#2ca02c")) +
+    theme(legend.position = "none")
+  
+  # --- Original (auto-scaled) ---
+  ggsave(
+    filename = file.path(plots_dir, paste0("violin_", var, ".png")),
+    plot = p_base,
+    width = 6, height = 5,
+    dpi = 300
+  )
+  
+  # --- Scaled version (only max constrained for a and c) ---
+  p_scaled <- p_base
+  if (var == "a") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 300))
+  } else if (var == "c") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 2))
+  }
+  
+  ggsave(
+    filename = file.path(plots_dir, paste0("scaled_violin_", var, ".png")),
+    plot = p_scaled,
+    width = 6, height = 5,
+    dpi = 300
+  )
+}
+
+
+```
+
+## Averaged Temporal + Nasal Data Fitting
+
+This section averages the temporal and nasal density values together for each subject at each eccentricity, then fits the sigmoid model to the averaged data.
+
+```{r average temporal nasal albinism}
+# ---- Average Temporal and Nasal for Albinism ----
+
+# Add region labels to each dataset
+data_temporal_albinism_labeled <- data_temporal_albinism %>%
+  mutate(Region = "Temporal")
+
+data_nasal_albinism_labeled <- data_nasal_albinism %>%
+  mutate(Region = "Nasal")
+
+# Combine temporal and nasal data
+combined_albinism <- bind_rows(data_temporal_albinism_labeled, data_nasal_albinism_labeled)
+
+# For each subject, find max E where BOTH directions have data, then filter
+# Only keep eccentricities where both temporal and nasal measurements exist
+data_averaged_albinism <- combined_albinism %>%
+  group_by(Subject, E) %>%
+  summarise(
+    D = mean(D, na.rm = TRUE),
+    n_regions = n_distinct(Region),  # Count how many regions have data at this E
+    .groups = "drop"
+  ) %>%
+  group_by(Subject) %>%
+  mutate(
+    # Find max E where both regions have data (n_regions == 2)
+    max_E_both = max(E[n_regions == 2], na.rm = TRUE)
+  ) %>%
+  # Keep only E values up to and including where both directions have data
+  filter(E <= max_E_both) %>%
+  ungroup() %>%
+  select(Subject, E, D)
+
+# ---- Prepare long data ----
+long_df <- data_averaged_albinism
+
+# ---- Create plots folder ----
+plots_dir <- "Albinism Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls_avg_albinism <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE   <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE <- RMSE
+  
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject), " (Averaged Temporal + Nasal)"),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4), " | ",
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_averaged_horizontal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+# ---- Write results ----
+write.csv(master_df_nls_avg_albinism, paste0("Albinism_averaged_horizontal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+albinism_averaged_parameters <- master_df_nls_avg_albinism
+
+# ---- Summary statistics ----
+summary_stats_avg_albinism <- master_df_nls_avg_albinism %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats_avg_albinism, paste0("Albinism_averaged_horizontal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+# Plot density parameters
+parametersAvgAlbinism <- albinism_averaged_parameters %>%
+  pivot_longer(
+    cols = -Subject,
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pAlbinismAvg <- ggplot(parametersAvgAlbinism, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for Averaged (Temporal + Nasal) Albinism Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "albinism_averaged_horizontal_parameter_densities.png"),
+  plot = pAlbinismAvg,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+```
+
+```{r average temporal nasal control}
+# ---- Average Temporal and Nasal for Control ----
+
+# Add region labels to each dataset
+data_temporal_control_labeled <- data_temporal_control %>%
+  mutate(Region = "Temporal")
+
+data_nasal_control_labeled <- data_nasal_control %>%
+  mutate(Region = "Nasal")
+
+# Combine temporal and nasal data
+combined_control <- bind_rows(data_temporal_control_labeled, data_nasal_control_labeled)
+
+# For each subject, find max E where BOTH directions have data, then filter
+# Only keep eccentricities where both temporal and nasal measurements exist
+data_averaged_control <- combined_control %>%
+  group_by(Subject, E) %>%
+  summarise(
+    D = mean(D, na.rm = TRUE),
+    n_regions = n_distinct(Region),  # Count how many regions have data at this E
+    .groups = "drop"
+  ) %>%
+  group_by(Subject) %>%
+  mutate(
+    # Find max E where both regions have data (n_regions == 2)
+    max_E_both = max(E[n_regions == 2], na.rm = TRUE)
+  ) %>%
+  # Keep only E values up to and including where both directions have data
+  filter(E <= max_E_both) %>%
+  ungroup() %>%
+  select(Subject, E, D)
+
+# ---- Prepare long data ----
+long_df <- data_averaged_control
+
+# ---- Create plots folder ----
+plots_dir <- "Control Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls_avg_control <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE   <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE <- RMSE
+  
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject), " (Averaged Temporal + Nasal)"),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4), " | ",
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_averaged_horizontal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+# ---- Write results ----
+write.csv(master_df_nls_avg_control, paste0("Control_averaged_horizontal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+control_averaged_parameters <- master_df_nls_avg_control
+
+# ---- Summary statistics ----
+summary_stats_avg_control <- master_df_nls_avg_control %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats_avg_control, paste0("Control_averaged_horizontal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+# Plot density parameters
+parametersAvgControl <- control_averaged_parameters %>%
+  pivot_longer(
+    cols = -Subject,
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pControlAvg <- ggplot(parametersAvgControl, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for Averaged (Temporal + Nasal) Control Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "control_averaged_horizontal_parameter_densities.png"),
+  plot = pControlAvg,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+```
+
+## Wolf Data: Averaged Temporal + Nasal Fitting
+
+This section loads the Wolf profile density data, removes subjects ending in "R", averages temporal and nasal data, and fits the sigmoid model.
+
+```{r load wolf data}
+# ---- Load Wolf Profile Density Data ----
+wolf_temporal_raw <- read.csv("Temporal_profile_density.csv")
+wolf_nasal_raw <- read.csv("Nasal_profile_density.csv")
+
+# Rename columns to match the format used elsewhere
+wolf_temporal_raw <- wolf_temporal_raw %>%
+  rename(E = Eccentricity_um, D = Density)
+
+wolf_nasal_raw <- wolf_nasal_raw %>%
+  rename(E = Eccentricity_um, D = Density)
+
+# ---- Remove subjects ending in "R" ----
+wolf_temporal <- wolf_temporal_raw %>%
+
+  filter(!grepl("R$", Subject))
+
+wolf_nasal <- wolf_nasal_raw %>%
+  filter(!grepl("R$", Subject))
+
+# Print how many subjects were removed
+cat("Temporal - Subjects removed (ending in R):", 
+    length(unique(wolf_temporal_raw$Subject)) - length(unique(wolf_temporal$Subject)), "\n")
+cat("Temporal - Remaining subjects:", length(unique(wolf_temporal$Subject)), "\n")
+cat("Nasal - Subjects removed (ending in R):", 
+    length(unique(wolf_nasal_raw$Subject)) - length(unique(wolf_nasal$Subject)), "\n")
+cat("Nasal - Remaining subjects:", length(unique(wolf_nasal$Subject)), "\n")
+```
+
+```{r average wolf temporal nasal}
+# ---- Average Temporal and Nasal for Wolf ----
+
+# Add region labels to each dataset
+wolf_temporal_labeled <- wolf_temporal %>%
+  mutate(Region = "Temporal")
+
+wolf_nasal_labeled <- wolf_nasal %>%
+  mutate(Region = "Nasal")
+
+# Combine temporal and nasal data
+combined_wolf <- bind_rows(wolf_temporal_labeled, wolf_nasal_labeled)
+
+# For each subject, find max E where BOTH directions have data, then filter
+# Only keep eccentricities where both temporal and nasal measurements exist
+data_averaged_wolf <- combined_wolf %>%
+  group_by(Subject, E) %>%
+  summarise(
+    D = mean(D, na.rm = TRUE),
+    n_regions = n_distinct(Region),  # Count how many regions have data at this E
+    .groups = "drop"
+  ) %>%
+  group_by(Subject) %>%
+  mutate(
+    # Find max E where both regions have data (n_regions == 2)
+    max_E_both = max(E[n_regions == 2], na.rm = TRUE)
+  ) %>%
+  # Keep only E values up to and including where both directions have data
+  filter(E <= max_E_both) %>%
+  ungroup() %>%
+  select(Subject, E, D)
+
+# ---- Prepare long data ----
+long_df <- data_averaged_wolf
+
+# ---- Create plots folder ----
+plots_dir <- "Wolf Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls_avg_wolf <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE   <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE <- RMSE
+  
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject), " (Averaged Temporal + Nasal)"),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4), " | ",
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, "_averaged_horizontal", ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+# ---- Write results ----
+write.csv(master_df_nls_avg_wolf, paste0("Wolf_averaged_horizontal_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+wolf_averaged_parameters <- master_df_nls_avg_wolf
+
+# ---- Summary statistics ----
+summary_stats_avg_wolf <- master_df_nls_avg_wolf %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats_avg_wolf, paste0("Wolf_averaged_horizontal_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+# Plot density parameters
+parametersAvgWolf <- wolf_averaged_parameters %>%
+  pivot_longer(
+    cols = -Subject,
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pWolfAvg <- ggplot(parametersAvgWolf, aes(x = Value)) +
+  geom_density(fill = "#1f77b4", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for Averaged (Temporal + Nasal) Wolf Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "wolf_averaged_horizontal_parameter_densities.png"),
+  plot = pWolfAvg,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+```
+
+```{r compare all averaged parameters}
+# ---- Compare All Averaged Parameters: Wolf vs Control vs Albinism ----
+
+plots_dir <- "Parameter Summaries"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# Wilcoxon tests: Albinism vs Control (averaged)
+a_test_ac <- wilcox.test(albinism_averaged_parameters$a, control_averaged_parameters$a)
+b_test_ac <- wilcox.test(albinism_averaged_parameters$b, control_averaged_parameters$b)
+c_test_ac <- wilcox.test(albinism_averaged_parameters$c, control_averaged_parameters$c)
+d_test_ac <- wilcox.test(albinism_averaged_parameters$D0, control_averaged_parameters$D0)
+e_test_ac <- wilcox.test(albinism_averaged_parameters$RMSE, control_averaged_parameters$RMSE)
+
+ttest_albinism_control <- cbind(a_test_ac, b_test_ac, c_test_ac, d_test_ac, e_test_ac)
+colnames(ttest_albinism_control) <- c("a", "b", "c", "D0", "RMSE")
+write.csv(ttest_albinism_control, paste0("Parameter Summaries/Wilcoxin Test Averaged_Horizontal Albinism v Control", version_suffix, ".csv"), row.names = TRUE)
+
+# Wilcoxon tests: Wolf vs Control (averaged)
+a_test_wc <- wilcox.test(wolf_averaged_parameters$a, control_averaged_parameters$a)
+b_test_wc <- wilcox.test(wolf_averaged_parameters$b, control_averaged_parameters$b)
+c_test_wc <- wilcox.test(wolf_averaged_parameters$c, control_averaged_parameters$c)
+d_test_wc <- wilcox.test(wolf_averaged_parameters$D0, control_averaged_parameters$D0)
+e_test_wc <- wilcox.test(wolf_averaged_parameters$RMSE, control_averaged_parameters$RMSE)
+
+ttest_wolf_control <- cbind(a_test_wc, b_test_wc, c_test_wc, d_test_wc, e_test_wc)
+colnames(ttest_wolf_control) <- c("a", "b", "c", "D0", "RMSE")
+write.csv(ttest_wolf_control, paste0("Parameter Summaries/Wilcoxin Test Averaged_Horizontal Wolf v Control", version_suffix, ".csv"), row.names = TRUE)
+
+# ---- Combined Violin Plots for All Averaged Data (Wolf, Control, Albinism) ----
+
+# Combine all averaged datasets
+datasets_long_avg_all <- bind_rows(
+  wolf_averaged_parameters %>% mutate(Dataset = "wolf_averaged_horizontal"),
+  control_averaged_parameters %>% mutate(Dataset = "control_averaged_horizontal"),
+  albinism_averaged_parameters %>% mutate(Dataset = "albinism_averaged_horizontal")
+)
+
+# Variables to plot
+vars_to_plot <- c("a", "b", "c", "RMSE")
+
+# Convert to long format
+df_long_avg_all <- datasets_long_avg_all %>%
+  select(all_of(vars_to_plot), Dataset) %>%
+  pivot_longer(
+    cols = all_of(vars_to_plot),
+    names_to = "Variable",
+    values_to = "Value"
+  )
+
+# Violin plot for all averaged data
+combined_violin_avg_all <- ggplot(df_long_avg_all, aes(x = Dataset, y = Value, fill = Dataset)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Violin Plots of Averaged Parameters: Wolf vs Control vs Albinism",
+    x = "Dataset",
+    y = "Value"
+  ) +
+  scale_fill_manual(values = c("wolf_averaged_horizontal" = "#1f77b4", "control_averaged_horizontal" = "#ff7f0e", "albinism_averaged_horizontal" = "#2ca02c")) +
+  theme(legend.position = "none")
+
+ggsave(
+  filename = file.path(plots_dir, "violin_all_averaged_horizontal_parameters.png"),
+  plot = combined_violin_avg_all,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+
+# Individual violin plots for all averaged data
+for (var in vars_to_plot) {
+  
+  df_var <- df_long_avg_all %>% filter(Variable == var)
+  
+  p_base <- ggplot(df_var, aes(x = Dataset, y = Value, fill = Dataset)) +
+    geom_violin(trim = FALSE, alpha = 0.6) +
+    geom_boxplot(width = 0.05, fill = "white", outlier.shape = NA) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste("Violin Plot of", var, "(All Averaged Data)"),
+      x = "Dataset",
+      y = var
+    ) +
+    scale_fill_manual(values = c("wolf_averaged_horizontal" = "#1f77b4", "control_averaged_horizontal" = "#ff7f0e", "albinism_averaged_horizontal" = "#2ca02c")) +
+    theme(legend.position = "none")
+  
+  ggsave(
+    filename = file.path(plots_dir, paste0("violin_all_averaged_horizontal_", var, ".png")),
+    plot = p_base,
+    width = 6, height = 5,
+    dpi = 300
+  )
+  
+  # Scaled versions for a and c
+  p_scaled <- p_base
+  if (var == "a") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 300))
+  } else if (var == "c") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 2))
+  }
+  
+  ggsave(
+    filename = file.path(plots_dir, paste0("scaled_violin_all_averaged_horizontal_", var, ".png")),
+    plot = p_scaled,
+    width = 6, height = 5,
+    dpi = 300
+  )
+}
+```
+
+```{r export averaged summary}
+# ---- Export Summary for All Averaged Datasets ----
+### --- Function to compute CI limits for the mean ---
+mean_ci <- function(values, level = 0.95) {
+  n <- sum(!is.na(values))
+  m <- mean(values, na.rm = TRUE)
+  s <- sd(values, na.rm = TRUE)
+  
+  if (n < 2 || is.na(s)) {
+    return(c(lower = NA, upper = NA))
+  }
+  
+  error <- qt((1 + level)/2, df = n - 1) * s / sqrt(n)
+  
+  c(lower = m - error, upper = m + error)
+}
+
+### --- Function to summarize one dataset ---
+summarize_dataset <- function(df) {
+  
+  numeric_vars <- c("a", "b", "c", "D0", "RMSE", "RSS")
+  
+  stats <- lapply(numeric_vars, function(var) {
+    vals <- df[[var]]
+    m <- mean(vals, na.rm = TRUE)
+    sd_val <- sd(vals, na.rm = TRUE)
+    min_val <- min(vals, na.rm = TRUE)
+    max_val <- max(vals, na.rm = TRUE)
+    n_val <- length(unique(df$Subject))
+    ci <- mean_ci(vals, level = 0.95)
+    
+    c(
+      Mean = m,
+      SD = sd_val,
+      Min = min_val,
+      Max = max_val,
+      N = n_val,
+      CI_lower = ci[1],
+      CI_upper = ci[2]
+    )
+  })
+  
+  stats_df <- as.data.frame(do.call(cbind, stats))
+  colnames(stats_df) <- numeric_vars
+  stats_df$Statistic <- rownames(stats_df)
+  stats_df <- stats_df[, c("Statistic", numeric_vars)]
+  
+  rownames(stats_df) <- NULL
+  return(stats_df)
+}
+
+### --- Your averaged datasets ---
+datasets_avg <- list(
+  wolf_averaged_horizontal    = wolf_averaged_parameters,
+  control_averaged_horizontal = control_averaged_parameters,
+  albinism_averaged_horizontal = albinism_averaged_parameters
+)
+
+### --- Create Excel workbook ---
+wb_avg <- createWorkbook()
+
+### --- Add one sheet per dataset ---
+for (nm in names(datasets_avg)) {
+  
+  summary_df <- summarize_dataset(datasets_avg[[nm]])
+  
+  # Round values except N
+  for (col in names(summary_df)) {
+    if (col != "Statistic") {
+      summary_df[[col]] <- round(summary_df[[col]], 3)
+    }
+  }
+  
+  addWorksheet(wb_avg, nm)
+  writeData(wb_avg, nm, summary_df)
+}
+
+### --- Save workbook ---
+saveWorkbook(wb_avg, file = paste0("Parameter Summaries/Averaged_Horizontal_Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
+```
+

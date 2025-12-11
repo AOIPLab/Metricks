@@ -1,0 +1,1291 @@
+---
+title: "Foveal Cone Density Modeling with Plotting"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+date: "2025-11-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---- VERSION CONTROL ----
+# Update this number each time you run the script
+# Format: _vX_MMDDYY will be appended to Excel filenames
+version_number <- 3
+run_date <- format(Sys.Date(), "%m%d%y")
+version_suffix <- paste0("_v", version_number, "_", run_date)
+```
+
+This first part is analyzing average density values of ours, and averages Wolf's radial density. It then fits a nonlinear least squares regression model on them and defines optimal parameters.
+```{r define model}
+library(minpack.lm)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(zoo)
+
+
+# Define model: D(E) = D0 / ((1 + (E/a)^b)^c)
+
+fit_sigmoid_model <- function(df) {
+
+  # Estimate D0 from smallest eccentricity for CDC or max(D) for PCD
+  D0 <- df %>% filter(E == 0) %>% pull(D)
+  if (length(D0) == 0) D0 <- max(df$D) #PCD if no CDC data - but we should comment this out before running. Discuss w/ Joe which one.
+
+  fit <- try(
+    nlsLM(
+      D ~ D0 / ((1 + (E / a)^b)^c),
+      data = df,
+      start = list(a = 50, b = 2, c = 0.5),
+      lower = c(a = 0.1, b = 1, c = 0),
+      upper = c(a = 150, b = 3, c = 1),
+      control = nls.lm.control(maxiter = 500)
+    ),
+    silent = TRUE
+  )
+
+  if (inherits(fit, "try-error")) {
+    return(list(
+      params = tibble(a = NA, b = NA, c = NA, D0 = D0),
+      fit = NULL
+    ))
+  }
+
+  params <- tibble(
+    a = coef(fit)[["a"]],
+    b = coef(fit)[["b"]],
+    c = coef(fit)[["c"]],
+    D0 = D0
+  )
+
+  list(params = params, fit = fit)
+}
+
+# Plot each subject
+
+plot_subject_fit <- function(df, fit_obj, subject_id) {
+
+  params <- fit_obj$params
+  fit <- fit_obj$fit
+
+  # Prediction grid generation
+  E_pred <- seq(min(df$E), max(df$E), length.out = 400)
+
+  if (!is.null(fit)) {
+    pred <- predict(fit, newdata = data.frame(E = E_pred), se.fit = TRUE)
+    D_pred <- pred$fit
+    se <- pred$se.fit
+
+    # 95% CI
+    upper <- D_pred + 1.96 * se
+    lower <- D_pred - 1.96 * se
+
+    pred_df <- data.frame(E = E_pred, D_pred, upper, lower)
+  } else {
+    pred_df <- NULL
+  }
+
+  # Smoothed data (11 µm running median)
+  df_smoothed <- df %>%
+    arrange(E) %>%
+    mutate(D_smooth = zoo::rollmedian(D, k = 11, fill = NA, align = "center"))
+
+  # Plot
+  p <- ggplot() +
+    # Data (smoothed)
+    geom_point(data = df_smoothed, aes(E, D_smooth), alpha = 0.7) +
+
+    # Model + CI
+    {
+      if (!is.null(pred_df))
+        geom_ribbon(data = pred_df, aes(E, ymin = lower, ymax = upper), alpha = 0.2)
+    } +
+    {
+      if (!is.null(pred_df))
+        geom_line(data = pred_df, aes(E, D_pred), linewidth = 1.1)
+    } +
+    
+    labs(
+      title = paste("Cone Density Sigmoid Fit –", subject_id),
+      x = "Eccentricity (µm)",
+      y = "Cone Density (cones/mm²)"
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+
+  # Save plot
+  outfile <- file.path("plots", paste0(subject_id, "_sigmoid_fit.png"))
+  ggsave(outfile, p, width = 7, height = 5, dpi = 300)
+
+  return(p)
+}
+
+```
+
+```{r load average data}
+#normative
+data_control <- read.csv("Averaged_ALL_bound_density_map_20250330_raw_1_um_spacing_radial_density.csv")
+data_albinism <- read.csv("Averaged_ALL_bound_density_map_20251125_raw_1_um_spacing_radial_density.csv")
+data_albinism_23 <- read.csv("Averaged_23_bound_density_map_20251125_raw_1_um_spacing_radial_density.csv")
+data_wolf <- read.csv("Radial_density_vector.csv")
+
+```
+
+```{r Fit Average Control and Albinism}
+#Control
+#input with 3 columns: subject   E   D
+
+fit_obj <- fit_sigmoid_model(data_albinism)
+control_avg_params<-fit_obj$params
+
+fit_obj2 <- fit_sigmoid_model(data_albinism)
+params_avg_albinism<-fit_obj2$params
+
+fit_obj3 <- fit_sigmoid_model(data_albinism_23)
+params_avg_albinism23<-fit_obj3$params
+
+```
+
+```{r - Fit Average for Wolf, this code needs cleaning}
+data <- read.csv("Radial_density_vector.csv")
+df4<-data
+library(dplyr)
+
+# Suppose your dataframe is called df
+df4avg <- df4 %>%
+  group_by(Eccentricity_um) %>%       # Group by column 2
+  summarise(Mean_Density = mean(Density, na.rm = TRUE))  # Average column 3
+
+df5 <- data.frame(Subject = 1:nrow(df4avg))
+df5$Subject <- "Wolf Average"
+df5$E<-df4avg$Eccentricity_um
+df5$D<-df4avg$Mean_Density
+
+fit_obj4 <- fit_sigmoid_model(df5)
+params_Wolf<-fit_obj4$params
+
+#Filter Wolf for only OS
+library(dplyr)
+
+# Keep only rows where df4avg$Subject ends with "L"
+library(dplyr)
+
+dfLavg <- df4 %>%
+  # Step 1: Keep only rows where Subject ends with "L"
+  filter(substr(Subject, nchar(Subject), nchar(Subject)) == "L") %>%
+  # Step 2: Group by Eccentricity_um
+  group_by(Eccentricity_um) %>%
+  # Step 3: Average Density
+  summarise(Mean_Density = mean(Density, na.rm = TRUE))
+
+df6 <- data.frame(Subject = 1:nrow(dfLavg))
+df6$Subject <- "Wolf OS Average"
+df6$E<-dfLavg$Eccentricity_um
+df6$D<-dfLavg$Mean_Density
+
+fit_obj5 <- fit_sigmoid_model(df6)
+params_Wolf_OS<-fit_obj5$params
+```
+
+```{r load Radial}
+# Load radial data and remove outliers
+# Note: For wide-format data, we remove columns; for long-format, we filter rows
+data_radial_albinism <- read.csv("Albinism_Density_Extractions_Radial.csv") %>%
+  select(-any_of("GS_11902"))
+data_radial_control <- read.csv("Control_Density_Extractions_Radial.csv") %>%
+  select(-any_of("JC_11597")) %>%
+  select(-any_of("JC_11159")) %>%
+  select(-any_of("JC_0905"))
+data_radial_wolf <- read.csv("Radial_density_vector.csv")
+```
+
+First Attempt at Parameters, not clean outputs:
+```{r sigmoid function}
+fit_sigmoid_model <- function(df) {
+
+  # Estimate D0 from smallest eccentricity
+  D0 <- df %>% filter(E == 0) %>% pull(D)
+  if (length(D0) == 0) D0 <- max(df$D)  # <-- FIXED
+
+  fit <- try(
+    nlsLM(
+      D ~ D0 / ((1 + (E / a)^b)^c),
+      data = df,
+      start = list(a = 50, b = 2, c = 0.5),
+      lower = c(a = 0.1, b = 1, c = 0),
+      upper = c(a = 150, b = 3, c = 1),
+      control = nls.lm.control(maxiter = 500)
+    ),
+    silent = TRUE
+  )
+
+  # If fitting failed
+  if (inherits(fit, "try-error")) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA, D0 = D0),
+      fit = NULL
+    ))
+  }
+
+  # Successful fit
+  params <- c(
+    a = coef(fit)[["a"]],
+    b = coef(fit)[["b"]],
+    c = coef(fit)[["c"]],
+    D0 = D0
+  )
+
+  list(params = params, fit = fit)
+}
+
+
+```
+
+```{r Control Radial}
+#Control Radial
+library(dplyr)
+library(tidyr)
+
+# Column 1 = Eccentricity, Columns 2:n = subjects
+# Convert to long format
+long_df <- data_radial_control %>%
+  pivot_longer(
+    cols = -1,               # all columns except first
+    names_to = "Subject",    # column to store subject names
+    values_to = "D"          # column to store density values
+  ) %>%
+  rename(E = 1)              # rename first column as E
+
+master_df3 <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  names(x) <- c("E", "Subject", "D")  # ensure correct column order
+  
+  fit_obj <- fit_sigmoid_model(x)
+  params  <- fit_obj$params           # named vector
+  
+  # Convert to 1-row data frame
+  df <- as.data.frame(t(params))
+  df$Subject <- unique(x$Subject)
+  
+  df
+}) |>
+  dplyr::bind_rows() |>
+  dplyr::select(Subject, a, b, c, D0)
+
+write.csv(master_df3, "Control_radial_parameter_output.csv", row.names = FALSE)
+library(dplyr)
+
+# Summarize columns a, b, c, D0 with mean, sd, min, max
+summary_stats <- master_df3 %>%
+  summarise(
+    mean_a  = mean(a, na.rm = TRUE),
+    sd_a    = sd(a, na.rm = TRUE),
+    min_a   = min(a, na.rm = TRUE),
+    max_a   = max(a, na.rm = TRUE),
+    
+    mean_b  = mean(b, na.rm = TRUE),
+    sd_b    = sd(b, na.rm = TRUE),
+    min_b   = min(b, na.rm = TRUE),
+    max_b   = max(b, na.rm = TRUE),
+    
+    mean_c  = mean(c, na.rm = TRUE),
+    sd_c    = sd(c, na.rm = TRUE),
+    min_c   = min(c, na.rm = TRUE),
+    max_c   = max(c, na.rm = TRUE),
+    
+    mean_D0 = mean(D0, na.rm = TRUE),
+    sd_D0   = sd(D0, na.rm = TRUE),
+    min_D0  = min(D0, na.rm = TRUE),
+    max_D0  = max(D0, na.rm = TRUE)
+  )
+
+write.csv(summary_stats, "Control_radial_parameter_summary.csv", row.names = FALSE)
+
+# Convert to long format for easier plotting
+parameter_long_df3  <- master_df3 %>%
+  pivot_longer(cols = c(a, b, c), names_to = "parameter", values_to = "value")
+
+# Histogram
+ggplot(parameter_long_df3 , aes(x = value, fill = parameter)) +
+  geom_histogram(alpha = 0.6, position = "identity", bins = 20) +
+  facet_wrap(~parameter, scales = "free") +
+  theme_minimal() +
+  labs(title = "Control Distributions of a, b, c", x = "Value", y = "Count")
+
+ggplot(parameter_long_df3 , aes(x = value, color = parameter, fill = parameter)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap(~parameter, scales = "free") +
+  theme_minimal() +
+  labs(title = "Control Density plots of a, b, c", x = "Value", y = "Density")
+
+```
+
+```{r Wolf Radial}
+#Wolf Data
+master_df1 <- lapply(split(data_radial_wolf, data_radial_wolf$Subject), function(x) {
+  
+  names(x) <- c("Subject", "E", "D")
+  
+  result <- fit_sigmoid_model(x)
+  params <- result$params         # <-- extract numeric params vector
+  
+  df <- as.data.frame(t(params))  # convert to 1-row df
+  df$subject <- unique(x$Subject) # add subject ID
+  
+  df
+}) |>
+  dplyr::bind_rows() |>
+  dplyr::select(subject, a, b, c, D0)
+write.csv(master_df1, "Wolf_radial_parameter_output.csv", row.names = FALSE)
+
+library(dplyr)
+
+# Summarize columns a, b, c, D0 with mean, sd, min, max
+summary_stats <- master_df1 %>%
+  summarise(
+    mean_a  = mean(a, na.rm = TRUE),
+    sd_a    = sd(a, na.rm = TRUE),
+    min_a   = min(a, na.rm = TRUE),
+    max_a   = max(a, na.rm = TRUE),
+    
+    mean_b  = mean(b, na.rm = TRUE),
+    sd_b    = sd(b, na.rm = TRUE),
+    min_b   = min(b, na.rm = TRUE),
+    max_b   = max(b, na.rm = TRUE),
+    
+    mean_c  = mean(c, na.rm = TRUE),
+    sd_c    = sd(c, na.rm = TRUE),
+    min_c   = min(c, na.rm = TRUE),
+    max_c   = max(c, na.rm = TRUE),
+    
+    mean_D0 = mean(D0, na.rm = TRUE),
+    sd_D0   = sd(D0, na.rm = TRUE),
+    min_D0  = min(D0, na.rm = TRUE),
+    max_D0  = max(D0, na.rm = TRUE)
+  )
+
+write.csv(summary_stats, "Wolf_radial_parameter_summary.csv", row.names = FALSE)
+
+library(ggplot2)
+library(tidyr)
+
+# Convert to long format for easier plotting
+parameter_long_df  <- master_df1 %>%
+  pivot_longer(cols = c(a, b, c), names_to = "parameter", values_to = "value")
+
+# Histogram
+ggplot(parameter_long_df , aes(x = value, fill = parameter)) +
+  geom_histogram(alpha = 0.6, position = "identity", bins = 20) +
+  facet_wrap(~parameter, scales = "free") +
+  theme_minimal() +
+  labs(title = "Wolf Distributions of a, b, c", x = "Value", y = "Count")
+
+ggplot(parameter_long_df , aes(x = value, color = parameter, fill = parameter)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap(~parameter, scales = "free") +
+  theme_minimal() +
+  labs(title = "Wolf Density plots of a, b, c", x = "Value", y = "Density")
+
+library(ggplot2)
+library(tidyr)
+
+# Convert to long format
+parameter_long_df  <- master_df1 %>%
+  pivot_longer(cols = c(a, b, c), names_to = "parameter", values_to = "value")
+
+# Overlay plot: one point per subject, per parameter
+ggplot(long_df, aes(x = parameter, y = value, color = subject)) +
+  geom_point(size = 3, position = position_jitter(width = 0.2, height = 0)) +
+  geom_line(aes(group = subject), alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Per-subject overlay of a, b, c", x = "Parameter", y = "Value") +
+  theme(legend.position = "none")
+
+```
+
+```{r sigmoid function for Albinism}
+fit_sigmoid_model <- function(df) {
+
+  # Estimate D0 from smallest eccentricity
+  D0 <- df %>% filter(E == 0) %>% pull(D)
+  if (length(D0) == 0) D0 <- max(df$D)  # <-- FIXED
+
+  fit <- try(
+    nlsLM(
+      D ~ D0 / ((1 + (E / a)^b)^c),
+      data = df,
+      start = list(a = 50, b = 2, c = 0.5),
+      lower = c(a = 0.1, b = 1, c = 0),
+      upper = c(a = 36943, b = 22, c = 200),
+      control = nls.lm.control(maxiter = 500)
+    ),
+    silent = TRUE
+  )
+
+  # If fitting failed
+  if (inherits(fit, "try-error")) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA, D0 = D0),
+      fit = NULL
+    ))
+  }
+
+  # Successful fit
+  params <- c(
+    a = coef(fit)[["a"]],
+    b = coef(fit)[["b"]],
+    c = coef(fit)[["c"]],
+    D0 = D0
+  )
+
+  list(params = params, fit = fit)
+}
+
+```
+
+```{r Albinism Radial}
+#Albinism Data
+library(dplyr)
+library(tidyr)
+
+# Column 1 = Eccentricity, Columns 2:n = subjects
+# Convert to long format
+long_df <- data_radial_albinism %>%
+  pivot_longer(
+    cols = -1,               # all columns except first
+    names_to = "Subject",    # column to store subject names
+    values_to = "D"          # column to store density values
+  ) %>%
+  rename(E = 1)              # rename first column as E
+albinsm_subject_plot<-long_df
+master_df2 <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  names(x) <- c("E", "Subject", "D")  # ensure correct column order
+  
+  fit_obj <- fit_sigmoid_model(x)
+  params  <- fit_obj$params           # named vector
+  
+  # Convert to 1-row data frame
+  df <- as.data.frame(t(params))
+  df$Subject <- unique(x$Subject)
+  
+  df
+}) |>
+  dplyr::bind_rows() |>
+  dplyr::select(Subject, a, b, c, D0)
+
+write.csv(master_df2, "Albinism_radial_parameter_output.csv", row.names = FALSE)
+
+library(dplyr)
+
+# Summarize columns a, b, c, D0 with mean, sd, min, max
+summary_stats <- master_df2 %>%
+  summarise(
+    mean_a  = mean(a, na.rm = TRUE),
+    sd_a    = sd(a, na.rm = TRUE),
+    min_a   = min(a, na.rm = TRUE),
+    max_a   = max(a, na.rm = TRUE),
+    
+    mean_b  = mean(b, na.rm = TRUE),
+    sd_b    = sd(b, na.rm = TRUE),
+    min_b   = min(b, na.rm = TRUE),
+    max_b   = max(b, na.rm = TRUE),
+    
+    mean_c  = mean(c, na.rm = TRUE),
+    sd_c    = sd(c, na.rm = TRUE),
+    min_c   = min(c, na.rm = TRUE),
+    max_c   = max(c, na.rm = TRUE),
+    
+    mean_D0 = mean(D0, na.rm = TRUE),
+    sd_D0   = sd(D0, na.rm = TRUE),
+    min_D0  = min(D0, na.rm = TRUE),
+    max_D0  = max(D0, na.rm = TRUE)
+  )
+
+write.csv(summary_stats, "Albinism_radial_parameter_summary.csv", row.names = FALSE)
+```
+
+```{r}
+ggplot(parameter_long_df , aes(x = value, color = parameter, fill = parameter)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap(~parameter, scales = "free") +
+  theme_minimal() +
+  labs(title = "Albinism Density plots of a, b, c", x = "Value", y = "Density")
+
+```
+
+```{r T Tests}
+wolf_radial_parameters<-master_df1
+albinism_radial_parameters<-master_df2
+control_radial_parameters<-master_df3
+
+a<-wilcox.test(wolf_radial_parameters$a, control_radial_parameters$a)
+b<-wilcox.test(wolf_radial_parameters$b, control_radial_parameters$b)
+c<-wilcox.test(wolf_radial_parameters$c, control_radial_parameters$c)
+d<-wilcox.test(wolf_radial_parameters$D0, control_radial_parameters$D0)
+ttest_control_wolf<-cbind(a,b,c,d)
+write.csv(ttest_control_wolf, "Wilcoxin Test Control v Wolf.csv", row.names = TRUE)
+
+a<-wilcox.test(albinism_radial_parameters$a, control_radial_parameters$a)
+b<-wilcox.test(albinism_radial_parameters$b, control_radial_parameters$b)
+c<-wilcox.test(albinism_radial_parameters$c, control_radial_parameters$c)
+d<-wilcox.test(albinism_radial_parameters$D0, control_radial_parameters$D0)
+ttest_control_albinism<-cbind(a,b,c,d)
+write.csv(ttest_control_albinism, "Wilcoxin Test Albinism v Control.csv", row.names = TRUE)
+```
+
+Optimization function - attempted. Do Not use.
+```{r sigmoid - optim for RMSE}
+fit_sigmoid_rss_model <- function(df) {
+  
+  # D0 is the first point (E=0), or max(D) if missing
+  D0_val <- ifelse(any(df$E == 0), df$D[df$E == 0][1], max(df$D))
+  
+  # Sigmoid function with fixed D0
+  sigmoid_fun <- function(E, a, b, c) {
+    D0_val / ((1 + (E / a)^b)^c)
+  }
+  
+  # RMSE loss function
+  rmse_loss <- function(par) {
+    pred <- sigmoid_fun(df$E, par[1], par[2], par[3])
+    sqrt(mean((df$D - pred)^2))
+  }
+  
+  # Starting values
+  start_vals <- c(a = 0.5, b = 2, c = 2)
+  
+  # Fit model
+  fit <- tryCatch(
+    optim(
+      par = start_vals,
+      fn = rmse_loss,
+      method = "L-BFGS-B",
+      lower = c(0.01, 1, 0),
+      upper = c(150, 3, 1)
+    ),
+    error = function(e) NULL
+  )
+  
+  # If fit fails
+  if (is.null(fit)) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA),
+      rmse   = NA,
+      D0     = D0_val,
+      model_fun = sigmoid_fun
+    ))
+  }
+  
+  # Extract parameters
+  p <- fit$par
+  names(p) <- c("a", "b", "c")
+  
+  # Compute RMSE
+  rmse_val <- rmse_loss(p)
+  
+  return(list(
+    params = p,
+    rmse   = rmse_val,
+    D0     = D0_val,
+    model_fun = sigmoid_fun
+  ))
+}
+
+
+```
+```{r albinism checks}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# ---- Prepare long data ----
+long_df <- data_radial_albinism %>%
+  pivot_longer(
+    cols = -1,
+    names_to = "Subject",
+    values_to = "D"
+  ) %>%
+  rename(E = 1)
+
+# ---- Create plots folder ----
+plots_dir <- "plots"
+if (!dir.exists(plots_dir)) {
+  dir.create(plots_dir)
+}
+
+# ---- Fit model + compute RMSE + save plots ----
+master_df2 <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_rss_model(x)
+  
+  params <- fit_obj$params       # a, b, c
+  D0     <- fit_obj$D0          # fixed D0
+  rmse   <- fit_obj$rmse
+  model_fun <- fit_obj$model_fun
+  
+  # ---- Prepare results dataframe ----
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RMSE <- rmse
+  
+  # ---- Make predictions ----
+  model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+  
+  # ---- Make plot ----
+  gg <- ggplot(x, aes(E, D)) +
+    geom_point(color = "black", alpha = 0.7, size = 2) +
+    geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste0("Subject: ", unique(x$Subject)),
+      x = "Eccentricity",
+      y = "Density",
+      subtitle = paste0(
+        "a=", round(params["a"], 3), "  |  ",
+        "b=", round(params["b"], 3), "  |  ",
+        "c=", round(params["c"], 3), "  |  ",
+        "D0=", round(D0, 3), "  |  ",
+        "RMSE=", round(rmse, 4)
+      )
+    )
+  
+  # ---- Save plot in the folder ----
+  # sanitize subject name for filenames
+  safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+  ggsave(
+    filename = file.path(plots_dir, paste0("fit_plot_", safe_subject, ".png")),
+    plot = gg,
+    width = 6, height = 4, dpi = 300
+  )
+  
+  df
+}) %>%
+  bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE)
+
+
+# ---- Write results ----
+write.csv(master_df2, "Albinism_radial_parameter_output.csv", row.names = FALSE)
+
+# ---- Summary statistics ----
+summary_stats <- master_df2 %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, "Albinism_radial_parameter_summary.csv", row.names = FALSE)
+
+```
+
+Final Attempt at Parameter Outputs:
+```{r sigmoid - nlsM for RSS}
+# ---- Load package ----
+library(minpack.lm)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# ---- Function to fit sigmoid using nonlinear least squares ----
+library(minpack.lm)
+
+fit_sigmoid_nls_rss <- function(df) {
+  
+  # Fixed D0: first point (E=0) or max(D) if missing
+  D0_val <- ifelse(any(df$E == 0), df$D[df$E == 0][1], max(df$D))
+  
+  # Sigmoid model
+  sigmoid_formula <- D ~ D0_val / ((1 + (E / a)^b)^c)
+  
+  # Starting values
+  start_vals <- list(a = 50, b = 2, c = 0.5)
+  
+  # Fit model using nonlinear least squares
+  fit <- tryCatch(
+    nlsLM(
+      formula = sigmoid_formula,
+      data = df,
+      start = start_vals,
+      lower = c(a = 0.01, b = 1, c = 0),
+      upper = c(a = 50000, b = 100, c = 500),
+      control = nls.lm.control(maxiter = 1000)
+    ),
+    error = function(e) NULL
+  )
+  
+  # If fit fails
+  if (is.null(fit)) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA),
+      RSS    = NA,
+      RMSE=NA,
+      D0     = D0_val,
+      model_fun = function(E, a, b, c) rep(NA, length(E))
+    ))
+  }
+  
+  # Extract parameters
+  p <- coef(fit)
+  
+  # Compute RSS+RMSE directly from residuals stored in fit
+  rss_val <- sum(residuals(fit)^2)
+  rmse_val <- sqrt(sum(residuals(fit)^2) / nrow(df))
+  
+  # Model function for plotting
+  model_fun <- function(E, a, b, c) {
+    D0_val / ((1 + (E / a)^b)^c)
+  }
+  
+  list(
+    params = p,
+    RSS    = rss_val,
+    RMSE    = rmse_val,
+    D0     = D0_val,
+    model_fun = model_fun
+  )
+}
+```
+
+```{r albinism}
+# ---- Prepare long data ----
+long_df <- data_radial_albinism %>%
+  pivot_longer(
+    cols = -1,
+    names_to = "Subject",
+    values_to = "D"
+  ) %>%
+  rename(E = 1)
+
+# ---- Create plots folder ----
+plots_dir <- "Albinism Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Albinism_radial_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Albinism_radial_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+albinism_parameters<-master_df_nls
+#plot density parameters
+
+parametersA <- albinism_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pAlbinism<-ggplot(parametersA, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for Albinism Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "albinism_parameter_densities.png"),
+  plot = pAlbinism,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+
+```
+
+```{r control}
+# ---- Prepare long data ----
+long_df <- data_radial_control %>%
+  pivot_longer(
+    cols = -1,
+    names_to = "Subject",
+    values_to = "D"
+  ) %>%
+  rename(E = 1)
+
+# ---- Create plots folder ----
+plots_dir <- "Control Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Control_radial_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Control_radial_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+control_parameters<-master_df_nls
+#plot density parameters
+
+parametersC <- control_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pControl<-ggplot(parametersC, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for Control Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "control_parameter_densities.png"),
+  plot = pControl,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+```
+
+```{r Wolf}
+
+# ---- Prepare long data ----
+data_radial_wolf_OS <- data_radial_wolf %>%
+  filter(!grepl("R$", Subject))
+
+#long_df <- data_radial_wolf %>%
+#  transmute(E = Eccentricity_um,
+#            Subject,
+#            D = Density) %>%
+#  arrange(Subject, E)
+
+long_df <- data_radial_wolf_OS %>%
+  transmute(E = Eccentricity_um,
+            Subject,
+            D = Density) %>%
+  arrange(Subject, E)
+
+
+# ---- Create plots folder ----
+plots_dir <- "Wolf Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir, paste0("fit_plot_", safe_subject, ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+# ---- Write results ----
+write.csv(master_df_nls, paste0("Wolf_radial_parameter_output_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, paste0("Wolf_radial_parameter_summary_NLS", version_suffix, ".csv"), row.names = FALSE)
+
+wolf_parameters<-master_df_nls
+
+#plot density parameters
+parametersW <- wolf_parameters %>%
+  pivot_longer(
+    cols = -Subject,       # everything except Subject
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+pWolf<-ggplot(parametersW, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = "Density Plots for Wolf Parameters", x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir, "wolf_parameter_densities.png"),
+  plot = pWolf,
+  width = 10,
+  height = 8,
+  dpi = 300)
+```
+
+```{r Export Summary}
+plots_dir <- "Parameter Summaries"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Summary statistics ----
+library(openxlsx)
+
+### --- Your datasets ---
+datasets <- list(
+  wolf    = wolf_parameters,
+  control = control_parameters,
+  albinism     = albinism_parameters
+)
+
+### --- Function to compute CI limits for the mean ---
+mean_ci <- function(values, level = 0.95) {
+  n <- sum(!is.na(values))
+  m <- mean(values, na.rm = TRUE)
+  s <- sd(values, na.rm = TRUE)
+  
+  if (n < 2 || is.na(s)) {
+    return(c(lower = NA, upper = NA))
+  }
+  
+  error <- qt((1 + level)/2, df = n - 1) * s / sqrt(n)
+  
+  c(lower = m - error, upper = m + error)
+}
+
+### --- Function to summarize one dataset ---
+summarize_dataset <- function(df) {
+  
+  numeric_vars <- c("a", "b", "c", "D0", "RMSE", "RSS")
+  
+  stats <- lapply(numeric_vars, function(var) {
+    vals <- df[[var]]
+    m <- mean(vals, na.rm = TRUE)
+    sd_val <- sd(vals, na.rm = TRUE)
+    min_val <- min(vals, na.rm = TRUE)
+    max_val <- max(vals, na.rm = TRUE)
+    n_val <- length(unique(df$Subject))
+    ci <- mean_ci(vals, level = 0.95)
+    
+    c(
+      Mean = m,
+      SD = sd_val,
+      Min = min_val,
+      Max = max_val,
+      N = n_val,
+      CI_lower = ci[1],
+      CI_upper = ci[2]
+    )
+  })
+  
+  stats_df <- as.data.frame(do.call(cbind, stats))
+  colnames(stats_df) <- numeric_vars
+  stats_df$Statistic <- rownames(stats_df)
+  stats_df <- stats_df[, c("Statistic", numeric_vars)]
+  
+  rownames(stats_df) <- NULL
+  return(stats_df)
+}
+
+### --- Create Excel workbook ---
+wb <- createWorkbook()
+
+### --- Add one sheet per dataset ---
+for (nm in names(datasets)) {
+  
+  summary_df <- summarize_dataset(datasets[[nm]])
+  
+  # Round values except N
+  for (col in names(summary_df)) {
+    if (col != "Statistic") {
+      summary_df[[col]] <- round(summary_df[[col]], 3)
+    }
+  }
+  
+  addWorksheet(wb, nm)
+  writeData(wb, nm, summary_df)
+}
+
+### --- Save workbook ---
+saveWorkbook(wb, file = paste0("Parameter Summaries/Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
+```
+
+```{r t tests - needs variable name fixing}
+a<-wilcox.test(wolf_parameters$a, control_parameters$a)
+b<-wilcox.test(wolf_parameters$b, control_parameters$b)
+c<-wilcox.test(wolf_parameters$c, control_parameters$c)
+d<-wilcox.test(wolf_parameters$D0, control_parameters$D0)
+e<-wilcox.test(wolf_parameters$RMSE, control_parameters$RMSE)
+ttest_control_wolf<-cbind(a,b,c,d,e)
+colnames(ttest_control_wolf) <- c("a", "b", "c", "D0", "RMSE")
+write.csv(ttest_control_wolf, paste0("Parameter Summaries/Wilcoxin Test Control v Wolf", version_suffix, ".csv"), row.names = TRUE)
+
+a<-wilcox.test(albinism_parameters$a, control_parameters$a)
+b<-wilcox.test(albinism_parameters$b, control_parameters$b)
+c<-wilcox.test(albinism_parameters$c, control_parameters$c)
+d<-wilcox.test(albinism_parameters$D0, control_parameters$D0)
+e<-wilcox.test(albinism_parameters$RMSE, control_parameters$RMSE)
+ttest_control_albinism<-cbind(a,b,c,d,e)
+colnames(ttest_control_albinism) <- c("a", "b", "c", "D0", "RMSE")
+write.csv(ttest_control_albinism, paste0("Parameter Summaries/Wilcoxin Test Albinism v Control", version_suffix, ".csv"), row.names = TRUE)
+```
+
+```{r parameter density and violin plots}
+
+ggsave(
+  filename = file.path(plots_dir, "wolf_parameter_densities.png"),
+  plot = pWolf,
+  width = 10,
+  height = 8,
+  dpi = 300)
+ggsave(
+  filename = file.path(plots_dir, "control_parameter_densities.png"),
+  plot = pControl,
+  width = 10,
+  height = 8,
+  dpi = 300)
+ggsave(
+  filename = file.path(plots_dir, "albinism_parameter_densities.png"),
+  plot = pAlbinism,
+  width = 10,
+  height = 8,
+  dpi = 300)
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Combine datasets into one long-format dataframe
+datasets_long <- bind_rows(
+  wolf_parameters    %>% mutate(Dataset = "wolf"),
+  control_parameters %>% mutate(Dataset = "control"),
+  albinism_parameters %>% mutate(Dataset = "albinism")
+)
+
+# Variables to plot
+vars_to_plot <- c("a", "b", "c", "RMSE")
+
+# Convert to long format
+df_long <- datasets_long %>%
+  select(all_of(vars_to_plot), Dataset) %>%
+  pivot_longer(
+    cols = all_of(vars_to_plot),
+    names_to = "Variable",
+    values_to = "Value"
+  )
+
+# Violin plot
+combined_violin<-ggplot(df_long, aes(x = Dataset, y = Value, fill = Dataset)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +  # optional: overlay boxplot
+  facet_wrap(~ Variable, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Violin Plots of Variables by Dataset",
+    x = "Dataset",
+    y = "Value"
+  ) +
+  scale_fill_manual(values = c("wolf" = "#1f77b4", "control" = "#ff7f0e", "albinism" = "#2ca02c")) +
+  theme(legend.position = "none")
+
+ggsave(
+  filename = file.path(plots_dir, "violin_all_parameters.png"),
+  plot = combined_violin,
+  dpi = 300)
+
+
+# Individual Violin Plots
+
+for (var in vars_to_plot) {
+  
+  df_var <- df_long %>% filter(Variable == var)
+  
+  # Base violin plot (common to both)
+  p_base <- ggplot(df_var, aes(x = Dataset, y = Value, fill = Dataset)) +
+    geom_violin(trim = FALSE, alpha = 0.6) +
+    geom_boxplot(width = 0.05, fill = "white", outlier.shape = NA) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste("Violin Plot of", var, "by Dataset"),
+      x = "Dataset",
+      y = var
+    ) +
+    scale_fill_manual(values = c("wolf" = "#1f77b4", "control" = "#ff7f0e", "albinism" = "#2ca02c")) +
+    theme(legend.position = "none")
+  
+  # --- Original (auto-scaled) ---
+  ggsave(
+    filename = file.path(plots_dir, paste0("violin_", var, ".png")),
+    plot = p_base,
+    width = 6, height = 5,
+    dpi = 300
+  )
+  
+  # --- Scaled version (only max constrained for a and c) ---
+  p_scaled <- p_base
+  if (var == "a") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 300))
+  } else if (var == "c") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 2))
+  }
+  
+  ggsave(
+    filename = file.path(plots_dir, paste0("scaled_violin_", var, ".png")),
+    plot = p_scaled,
+    width = 6, height = 5,
+    dpi = 300
+  )
+}
+
+
+```
