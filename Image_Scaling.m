@@ -6,7 +6,7 @@
 %
 % Input: Folder containing foveal ROI images, image name must be in either
 % of these formats:
-% JC_XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc.tif
+% XX_XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc.tif
 % or XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc.tif
 %
 % Output: scaled .tifs with new scales embedded in the file names with

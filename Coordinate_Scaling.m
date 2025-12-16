@@ -6,7 +6,7 @@
 %
 % Input: Folder containing foveal ROI coordinates, csv names must be in either
 % of these formats:
-% JC_XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc_coords.csv
+% XX_XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc_coords.csv
 % or XXXXX_date_OD/S_XpXXXXmpp_XXXpXXXppd_XXXum_date_jc_coords.csv
 %
 % Also need a LUT file which is an output file from the precursor script
