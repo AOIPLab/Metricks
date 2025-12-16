@@ -2,6 +2,9 @@
 % Extract horizontal and vertical density profiles relative to CDC location
 clear; clc;
 
+maltese = 0;
+straight = 0;
+
 pixel_size = 0.25; % assume 0.25 umpp
 
 basePath = which('Batch_Run_Horizontal_Vertical_Density.m');
@@ -24,6 +27,30 @@ if output_base == 0, error('No output folder selected'); else output_root = full
 if ~exist(output_root, 'dir')
     mkdir(output_root);
 end
+
+% Have user select what kind of row/column analysis they'd like to do
+list = {'Straight Cross', 'Maltese Cross'};
+[indx, tf] = listdlg('PromptString', 'Select the following row/column analyses to perform.', 'SelectionMode', 'multiple', 'ListString', list);
+if tf == 1
+    selections = size(indx,2);
+    if selections == 2
+        maltese = 1;
+        straight = 1;
+    else
+        indx_max = max(indx);
+        if indx_max == 1
+            straight = 1;
+        else
+            maltese = 1;
+        end
+    end
+    
+else
+    % Canceled dialog box - end the program
+    return
+end
+
+
 
 %% ---- Load LUT ----
 [hdr, lutData] = load_LUT_file_HV_Density(lut_file);
@@ -77,6 +104,25 @@ for i = 1:numel(files)
     % Load CSV image
     filepath = fullfile(files(i).folder, fname);
     M = readmatrix(filepath);
+
+    if straight == 1
+        % Have the user select the thickness of the row/column extraction
+        m1 = 'Please enter the desired row/column extraction thickness (# of rows/columns) MUST be an odd number:';
+        thickness = inputdlg(m1);
+        thickness = str2double(thickness{1});
+        while mod(thickness, 2) ~= 1 
+            warndlg('WARNING: Must enter odd number for thickness.')
+            thickness = inputdlg(m1);
+            thickness = str2double(thickness{1});
+        end
+    end
+    if maltese ==1
+        % Have the user select the thickness of the row/column extraction
+        m2 = 'Please enter the desired maltese cross angle (degrees):';
+        angle = inputdlg(m2);
+        angle = str2double(angle{1});
+        
+    end
 
     %% Extract meridian profiles
     % ======= Extract vertical profile =======
