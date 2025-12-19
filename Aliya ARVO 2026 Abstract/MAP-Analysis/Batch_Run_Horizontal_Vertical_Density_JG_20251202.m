@@ -130,7 +130,7 @@ for i = 1:numel(files)
         %% ---- Save output ----
         % unit is microns per pixel
         % create the output file name
-        outname = strcat(subj,'_', eye, '_Straight_Density_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+        outname = strcat(subj,'_', eye, '_Straight_Density_Thickness_', num2str(thickness), '_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
         outfile = fullfile(output_root, outname);
         writecell(straight_output, outfile);
 
@@ -198,7 +198,7 @@ for i = 1:numel(files)
         end
         maltese_output = [headers; D];
 
-        outname = strcat(subj,'_', eye, '_Maltese_Density_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+        outname = strcat(subj,'_', eye, '_Maltese_Density_', 'Angle_' , num2str(angle), '_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
         outfile = fullfile(output_root, outname);
         writecell(maltese_output, outfile);
 
