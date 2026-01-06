@@ -1,0 +1,287 @@
+---
+title: "Foveal Cone Density Modeling with Plotting"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+date: "2025-11-10"
+---
+
+<!--
+================================================================================
+                          Input File Documentation
+================================================================================
+
+This script requires two input csv files:
+
+1. Data input file (e.g., JC_0007.csv)
+   - Format: no headers
+   - Column 1: E (Eccentricity)
+   - Column 2: D (Density)
+   - The filename (without .csv) will be used as the Subject ID
+   
+   Example:
+   0,150000
+   10,145000
+   20,138000
+   ...
+
+2. Parameter ranges file: parameter_ranges.csv (must be in same folder as script)
+   - Format: no headers
+   - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average for their data as the seed)
+   - Row 2: b_min, b_max, b_start
+   - Row 3: c_min, c_max, c_start
+   
+   Example:
+   0.01,50000,50
+   1,200,2
+   0,500,0.5
+
+================================================================================
+-->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---- INTERACTIVE PROMPTS ----
+# Prompt for version number
+version_number <- as.integer(readline(prompt = "Enter version number (integer): "))
+
+# Use current date automatically
+run_date <- format(Sys.Date(), "%m%d%y")
+
+# Prompt for input file
+cat("\nNote: CSV file should have NO headers. Column 1 = Eccentricity (E), Column 2 = Density (D)\n")
+cat("The filename (without .csv) will be used as the Subject ID.\n")
+input_file <- readline(prompt = "Enter input CSV filename (e.g., JC_0007.csv): ")
+
+# Extract subject ID from filename (remove .csv extension)
+subject_id <- sub("\\.csv$", "", basename(input_file))
+
+# Prompt for orientation type
+cat("\nOrientation options: horizontal, radial, vertical\n")
+orientation_type <- tolower(readline(prompt = "Enter orientation type: (horizontal, radial, vertical)"))
+
+# Load parameter ranges from parameter_ranges.csv (assumed to be in same folder as script)
+param_ranges <- read.csv("parameter_ranges.csv", header = FALSE)
+
+# Convert all values to numeric
+a_min <- as.numeric(param_ranges[1, 1])
+a_max <- as.numeric(param_ranges[1, 2])
+a_start <- as.numeric(param_ranges[1, 3])
+b_min <- as.numeric(param_ranges[2, 1])
+b_max <- as.numeric(param_ranges[2, 2])
+b_start <- as.numeric(param_ranges[2, 3])
+c_min <- as.numeric(param_ranges[3, 1])
+c_max <- as.numeric(param_ranges[3, 2])
+c_start <- as.numeric(param_ranges[3, 3])
+
+cat("\nParameter ranges and starting values loaded:\n")
+cat("  a:", a_min, "-", a_max, "(start:", a_start, ")\n")
+cat("  b:", b_min, "-", b_max, "(start:", b_start, ")\n")
+cat("  c:", c_min, "-", c_max, "(start:", c_start, ")\n")
+
+# Create version suffix for output files
+version_suffix <- paste0("_v", version_number, "_", run_date)
+```
+
+This script loads a single subject's density data and fits a nonlinear least squares regression model to define optimal parameters.
+
+```{r load libraries and data}
+library(minpack.lm)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(zoo)
+
+# Load input file (no headers, col1=E, col2=D)
+data_single <- read.csv(input_file, header = FALSE)
+colnames(data_single) <- c("E", "D")
+
+# Convert to numeric (in case read as character)
+data_single$E <- as.numeric(data_single$E)
+data_single$D <- as.numeric(data_single$D)
+
+# Remove any rows with NA values
+data_single <- data_single[complete.cases(data_single), ]
+
+# Print summary of loaded data
+cat("Subject ID:", subject_id, "\n")
+cat("Data points:", nrow(data_single), "\n")
+cat("Eccentricity range:", min(data_single$E, na.rm = TRUE), "-", max(data_single$E, na.rm = TRUE), "\n")
+cat("Density range:", min(data_single$D, na.rm = TRUE), "-", max(data_single$D, na.rm = TRUE), "\n")
+
+# Check for data issues
+if(nrow(data_single) == 0) {
+  stop("ERROR: No valid data rows found. Check CSV format.")
+}
+if(any(is.na(data_single$E)) || any(is.na(data_single$D))) {
+  warning("WARNING: NA values detected in data.")
+}
+```
+
+```{r define model}
+# ---- Function to fit sigmoid using nonlinear least squares ----
+fit_sigmoid_nls_rss <- function(df, a_lower, a_upper, a_init, b_lower, b_upper, b_init, c_lower, c_upper, c_init) {
+  
+  # Fixed D0: first point (E=0) or max(D) if missing
+  if(any(df$E == 0)) {
+    D0_val <- df$D[df$E == 0][1]
+  } else {
+    D0_val <- max(df$D, na.rm = TRUE)
+  }
+  
+  # Ensure D0_val is numeric
+  D0_val <- as.numeric(D0_val)
+  
+  cat("  D0 value used:", D0_val, "\n")
+  
+  # Sigmoid model
+  sigmoid_formula <- D ~ D0_val / ((1 + (E / a)^b)^c)
+  
+  # Starting values (user-defined)
+  start_vals <- list(a = a_init, b = b_init, c = c_init)
+  
+  cat("  Attempting fit with start values: a=", a_init, ", b=", b_init, ", c=", c_init, "\n")
+  cat("  Parameter bounds: a=[", a_lower, ",", a_upper, "], b=[", b_lower, ",", b_upper, "], c=[", c_lower, ",", c_upper, "]\n")
+  
+  # Fit model using nonlinear least squares with user-defined bounds
+  fit <- tryCatch(
+    nlsLM(
+      formula = sigmoid_formula,
+      data = df,
+      start = start_vals,
+      lower = c(a = a_lower, b = b_lower, c = c_lower),
+      upper = c(a = a_upper, b = b_upper, c = c_upper),
+      control = nls.lm.control(maxiter = 1000)
+    ),
+    error = function(e) {
+      cat("  Fit ERROR:", e$message, "\n")
+      NULL
+    }
+  )
+  
+  # If fit fails
+  if (is.null(fit)) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA),
+      RSS    = NA,
+      RMSE   = NA,
+      D0     = D0_val,
+      model_fun = function(E, a, b, c) rep(NA, length(E))
+    ))
+  }
+  
+  # Extract parameters
+  p <- coef(fit)
+  
+  # Compute RSS+RMSE directly from residuals stored in fit
+  rss_val <- sum(residuals(fit)^2)
+  rmse_val <- sqrt(sum(residuals(fit)^2) / nrow(df))
+  
+  # Model function for plotting
+  model_fun <- function(E, a, b, c) {
+    D0_val / ((1 + (E / a)^b)^c)
+  }
+  
+  list(
+    params = p,
+    RSS    = rss_val,
+    RMSE   = rmse_val,
+    D0     = D0_val,
+    model_fun = model_fun
+  )
+}
+```
+
+```{r fit single subject}
+# ---- Create plots folder ----
+plots_dir <- "Single Subject Plots"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Fit the model ----
+fit_obj <- fit_sigmoid_nls_rss(data_single, a_min, a_max, a_start, b_min, b_max, b_start, c_min, c_max, c_start)
+params <- fit_obj$params
+
+# Ensure names exist
+if(is.null(names(params))) names(params) <- c("a","b","c")
+
+D0     <- fit_obj$D0
+RSS    <- fit_obj$RSS
+RMSE   <- fit_obj$RMSE
+model_fun <- fit_obj$model_fun
+
+# ---- Create results dataframe ----
+results_df <- data.frame(
+  Subject = subject_id,
+  a = params["a"],
+  b = params["b"],
+  c = params["c"],
+  D0 = D0,
+  RMSE = RMSE,
+  RSS = RSS
+)
+
+# ---- Print results to console ----
+cat("\n===== PARAMETER FIT RESULTS =====\n")
+cat("Subject:", subject_id, "\n")
+if(all(is.na(params))) {
+  cat("WARNING: Model fitting FAILED. Parameters are NA.\n")
+  cat("This may be due to:\n")
+  cat("  - Parameter bounds too restrictive\n")
+  cat("  - Starting values far from optimal\n")
+  cat("  - Data not suitable for sigmoid model\n")
+} else {
+  cat("a =", round(params["a"], 4), "\n")
+  cat("b =", round(params["b"], 4), "\n")
+  cat("c =", round(params["c"], 4), "\n")
+}
+cat("D0 =", ifelse(is.numeric(D0), round(D0, 4), D0), "\n")
+cat("RMSE =", ifelse(is.numeric(RMSE) && !is.na(RMSE), round(RMSE, 4), "NA"), "\n")
+cat("RSS =", ifelse(is.numeric(RSS) && !is.na(RSS), round(RSS, 4), "NA"), "\n")
+cat("=================================\n")
+
+# ---- Write results to CSV (in plots folder) ----
+write.csv(results_df, file.path(plots_dir, paste0(subject_id, "_", orientation_type, "_parameter_output", version_suffix, ".csv")), row.names = FALSE)
+```
+
+```{r generate plot}
+# ---- Generate density profile plot ----
+if(!all(is.na(params))) {
+  model_pred <- model_fun(data_single$E, params["a"], params["b"], params["c"])
+  
+  gg <- ggplot(data_single, aes(E, D)) +
+    geom_point(color = "black", alpha = 0.7, size = 2) +
+    geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste0("Subject: ", subject_id),
+      x = "Eccentricity",
+      y = "Density",
+      subtitle = paste0(
+        "a=", round(params["a"], 3), " | ",
+        "b=", round(params["b"], 3), " | ",
+        "c=", round(params["c"], 3), " | ",
+        "D0=", round(D0, 3), " | ",
+        "RSS=", round(RSS, 4), " | ",
+        "RMSE=", round(RMSE, 4)
+      )
+    )
+  
+  # ---- Save plot ----
+  safe_subject <- gsub("[^A-Za-z0-9_]", "_", subject_id)
+  ggsave(
+    filename = file.path(plots_dir, paste0("fit_plot_", safe_subject, "_", orientation_type, version_suffix, ".png")),
+    plot = gg,
+    width = 6, height = 4, dpi = 300
+  )
+  
+  # ---- Display plot ----
+  print(gg)
+  
+  cat("\nPlot saved to:", file.path(plots_dir, paste0("fit_plot_", safe_subject, "_", orientation_type, version_suffix, ".png")), "\n")
+} else {
+  cat("\nWarning: Model fitting failed. No plot generated.\n")
+}
+```

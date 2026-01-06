@@ -1,0 +1,672 @@
+---
+title: "Foveal Cone Density Modeling with Plotting"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+date: "2025-11-10"
+---
+
+<!--
+================================================================================
+                          Input File Documentation
+================================================================================
+
+This script requires 2-3 input csv files depending on comparison mode:
+
+1. Data input file(s) (e.g., Density_Extractions_Radial.csv)
+   - Format: paired columns (each subject has E and D columns)
+   - Row 1: Subject IDs (repeated for each E,D pair)
+   - Rows 2+: Paired values (E1,D1,E2,D2,E3,D3,...)
+   
+   Example:
+   JC_0007,JC_0007,JC_0077,JC_0077,JC_0200,JC_0200
+   0,161222,0,183470,0,176102
+   1,161257,1,183556,1,176168
+   2,161295,2,183730,2,176142
+   ...
+
+   Each subject's data is in column pairs: (Eccentricity, Density)
+
+   If comparison mode = yes: Two data files required (Group 1 and Group 2)
+   If comparison mode = no:  One data file required
+
+2. Parameter ranges file: parameter_ranges.csv (must be in same folder as script)
+   - Format: no headers
+   - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average for their data as the seed)
+   - Row 2: b_min, b_max, b_start
+   - Row 3: c_min, c_max, c_start
+   
+   Example:
+   0.01,50000,50
+   1,200,2
+   0,500,0.5
+
+================================================================================
+-->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---- INTERACTIVE PROMPTS ----
+# Prompt for version number
+version_number <- as.integer(readline(prompt = "Enter version number (integer): "))
+
+# Use current date automatically
+run_date <- format(Sys.Date(), "%m%d%y")
+
+# Prompt for orientation type
+cat("\nOrientation options: horizontal, radial, vertical\n")
+orientation_type <- tolower(readline(prompt = "Enter orientation type: horizontal/vertical/radial"))
+
+# Prompt for first input file
+cat("\nNote: CSV should be in PAIRED COLUMN format.\n")
+cat("  Row 1 = Subject IDs (repeated for each E,D pair)\n")
+cat("  Rows 2+ = Paired columns (E1,D1,E2,D2,...)\n")
+input_file_1 <- readline(prompt = "Enter first input CSV filename (e.g., Density_Extractions_Radial.csv): ")
+
+# Prompt for comparison mode
+comparison_mode <- tolower(readline(prompt = "Do you want to compare two groups? (yes/no): "))
+comparison_mode <- comparison_mode %in% c("yes", "y")
+
+# Prompt for second input file if comparison mode is enabled
+if (comparison_mode) {
+  input_file_2 <- readline(prompt = "Enter second input CSV filename (e.g., control.csv): ")
+  group_1_name <- readline(prompt = "Enter name for Group 1 (first file): ")
+  group_2_name <- readline(prompt = "Enter name for Group 2 (second file): ")
+} else {
+  group_1_name <- ""  # No group name prefix for single group analysis
+}
+
+# Load parameter ranges from parameter_inputs.csv (assumed to be in same folder as script)
+param_ranges <- read.csv("parameter_ranges.csv", header = FALSE)
+
+# Convert all values to numeric
+a_min <- as.numeric(param_ranges[1, 1])
+a_max <- as.numeric(param_ranges[1, 2])
+a_start <- as.numeric(param_ranges[1, 3])
+b_min <- as.numeric(param_ranges[2, 1])
+b_max <- as.numeric(param_ranges[2, 2])
+b_start <- as.numeric(param_ranges[2, 3])
+c_min <- as.numeric(param_ranges[3, 1])
+c_max <- as.numeric(param_ranges[3, 2])
+c_start <- as.numeric(param_ranges[3, 3])
+
+cat("\nParameter ranges and starting values loaded:\n")
+cat("  a:", a_min, "-", a_max, "(start:", a_start, ")\n")
+cat("  b:", b_min, "-", b_max, "(start:", b_start, ")\n")
+cat("  c:", c_min, "-", c_max, "(start:", c_start, ")\n")
+
+# Create version suffix for output files
+version_suffix <- paste0("_v", version_number, "_", run_date)
+```
+
+This first part loads horizontal (or however specified) density data and fits a nonlinear least squares regression model on them to define optimal parameters.
+
+```{r define model}
+library(minpack.lm)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(zoo)
+library(openxlsx)
+library(readxl)
+
+# Function to parse paired column format
+parse_paired_columns <- function(filepath) {
+  # Read raw data
+  raw_data <- read.csv(filepath, header = FALSE, stringsAsFactors = FALSE)
+  
+  # Row 1 contains subject IDs (repeated for E,D pairs)
+  subject_row <- as.character(raw_data[1, ])
+  
+  # Get unique subjects (every other column starting from 1)
+  subjects <- unique(subject_row[seq(1, length(subject_row), by = 2)])
+  
+  # Data starts from row 2
+  data_rows <- raw_data[-1, ]
+  
+  # Parse each subject's paired columns
+  all_data <- list()
+  col_idx <- 1
+  
+  for (i in seq(1, ncol(data_rows), by = 2)) {
+    if (i + 1 <= ncol(data_rows)) {
+      subject_name <- subject_row[i]
+      E_vals <- as.numeric(data_rows[, i])
+      D_vals <- as.numeric(data_rows[, i + 1])
+      
+      subject_df <- data.frame(
+        Subject = subject_name,
+        E = E_vals,
+        D = D_vals,
+        stringsAsFactors = FALSE
+      )
+      all_data[[length(all_data) + 1]] <- subject_df
+    }
+  }
+  
+  # Combine all subjects
+  combined <- bind_rows(all_data)
+  
+  # Remove NA rows
+  combined <- combined[complete.cases(combined), ]
+  
+  return(combined)
+}
+
+# Load first input file (paired column format)
+data_group_1 <- parse_paired_columns(input_file_1)
+
+# Print summary of loaded data
+if (group_1_name == "") {
+  cat("Subjects loaded:", length(unique(data_group_1$Subject)), "\n")
+} else {
+  cat(group_1_name, "subjects:", length(unique(data_group_1$Subject)), "\n")
+}
+
+# Load second input file if comparison mode is enabled
+if (comparison_mode) {
+  data_group_2 <- parse_paired_columns(input_file_2)
+  cat(group_2_name, "subjects:", length(unique(data_group_2$Subject)), "\n")
+}
+```
+
+
+Final Attempt at Parameter Outputs
+
+```{r sigmoid - nlsM for RSs}
+
+# ---- Function to fit sigmoid using nonlinear least squares ----
+library(minpack.lm)
+
+fit_sigmoid_nls_rss <- function(df, a_lower, a_upper, a_init, b_lower, b_upper, b_init, c_lower, c_upper, c_init) {
+  
+  # Fixed D0: first point (E=0) or max(D) if missing
+  D0_val <- ifelse(any(df$E == 0), df$D[df$E == 0][1], max(df$D))
+  
+  # Sigmoid model
+  sigmoid_formula <- D ~ D0_val / ((1 + (E / a)^b)^c)
+  
+  # Starting values (user-defined)
+  start_vals <- list(a = a_init, b = b_init, c = c_init)
+  
+  # Fit model using nonlinear least squares with user-defined bounds
+  fit <- tryCatch(
+    nlsLM(
+      formula = sigmoid_formula,
+      data = df,
+      start = start_vals,
+      lower = c(a = a_lower, b = b_lower, c = c_lower),
+      upper = c(a = a_upper, b = b_upper, c = c_upper),
+      control = nls.lm.control(maxiter = 1000)
+    ),
+    error = function(e) NULL
+  )
+  
+  # If fit fails
+  if (is.null(fit)) {
+    return(list(
+      params = c(a = NA, b = NA, c = NA),
+      RSS    = NA,
+      RMSE=NA,
+      D0     = D0_val,
+      model_fun = function(E, a, b, c) rep(NA, length(E))
+    ))
+  }
+  
+  # Extract parameters
+  p <- coef(fit)
+  
+  # Compute RSS+RMSE directly from residuals stored in fit
+  rss_val <- sum(residuals(fit)^2)
+  rmse_val <- sqrt(sum(residuals(fit)^2) / nrow(df))
+  
+  # Model function for plotting
+  model_fun <- function(E, a, b, c) {
+    D0_val / ((1 + (E / a)^b)^c)
+  }
+  
+  list(
+    params = p,
+    RSS    = rss_val,
+    RMSE    = rmse_val,
+    D0     = D0_val,
+    model_fun = model_fun
+  )
+}
+```
+
+```{r group1 analysis}
+# ---- Prepare long data ----
+
+long_df <- data_group_1 %>%
+  select(Subject, E, D)
+
+# ---- Create plots folder ----
+if (group_1_name == "") {
+  plots_dir_1 <- paste(orientation_type, "Plots", sep = " ")
+} else {
+  plots_dir_1 <- paste0(group_1_name, orientation_type, " Plots")
+}
+if (!dir.exists(plots_dir_1)) dir.create(plots_dir_1)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x, a_min, a_max, a_start, b_min, b_max, b_start, c_min, c_max, c_start)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir_1, paste0("fit_plot_", safe_subject, "_", orientation_type, ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results (to plots folder) ----
+# Build filename prefix (handle empty group name)
+file_prefix_1 <- if (group_1_name == "") orientation_type else paste0(group_1_name, "_", orientation_type)
+
+write.csv(master_df_nls, file.path(plots_dir_1, paste0(file_prefix_1, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
+
+group_1_parameters <- master_df_nls
+
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, file.path(plots_dir_1, paste0(file_prefix_1, "_parameter_summary_NLS", version_suffix, ".csv")), row.names = FALSE)
+
+# Plot density parameters
+parameters_group_1 <- group_1_parameters %>%
+  pivot_longer(
+    cols = -Subject,
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+plot_title_1 <- if (group_1_name == "") {
+  paste0("Density Plots for ", tools::toTitleCase(orientation_type), " Parameters")
+} else {
+  paste0("Density Plots for ", tools::toTitleCase(orientation_type), " ", group_1_name, " Parameters")
+}
+
+p_group_1 <- ggplot(parameters_group_1, aes(x = Value)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = plot_title_1, x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir_1, paste0(file_prefix_1, "_parameter_densities.png")),
+  plot = p_group_1,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+```
+
+
+```{r group2 analysis, eval=comparison_mode}
+# ---- This chunk only runs if comparison_mode is TRUE ----
+
+# ---- Prepare long data ----
+long_df <- data_group_2 %>%
+  select(Subject, E, D)
+
+# ---- Create plots folder ----
+plots_dir_2 <- paste0(group_2_name, " Plots")
+if (!dir.exists(plots_dir_2)) dir.create(plots_dir_2)
+
+# ---- Fit all subjects and save plots ----
+master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
+  
+  fit_obj <- fit_sigmoid_nls_rss(x, a_min, a_max, a_start, b_min, b_max, b_start, c_min, c_max, c_start)
+  params <- fit_obj$params
+  # Ensure names exist
+  if(is.null(names(params))) names(params) <- c("a","b","c")
+  D0     <- fit_obj$D0
+  RSS    <- fit_obj$RSS
+  RMSE    <- fit_obj$RMSE
+  model_fun <- fit_obj$model_fun
+  
+  df <- as.data.frame(t(params))
+  df$D0 <- D0
+  df$Subject <- unique(x$Subject)
+  df$RSS <- RSS
+  df$RMSE<-RMSE
+  # Only plot if fit succeeded
+  if(!all(is.na(params))) {
+    model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
+    
+    gg <- ggplot(x, aes(E, D)) +
+      geom_point(color = "black", alpha = 0.7, size = 2) +
+      geom_line(aes(y = model_pred), color = "#0072B2", linewidth = 1.2) +
+      theme_minimal(base_size = 14) +
+      labs(
+        title = paste0("Subject: ", unique(x$Subject)),
+        x = "Eccentricity",
+        y = "Density",
+        subtitle = paste0(
+          "a=", round(params["a"],3), " | ",
+          "b=", round(params["b"],3), " | ",
+          "c=", round(params["c"],3), " | ",
+          "D0=", round(D0,3), " | ",
+          "RSS=", round(RSS,4),
+          "RMSE=", round(RMSE,4)
+        )
+      )
+    
+    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+    ggsave(file.path(plots_dir_2, paste0("fit_plot_", safe_subject, "_", orientation_type, ".png")), gg,
+           width = 6, height = 4, dpi = 300)
+  }
+  
+  df
+}) %>% bind_rows() %>%
+  select(Subject, a, b, c, D0, RMSE, RSS)
+
+
+# ---- Write results (to plots folder) ----
+write.csv(master_df_nls, file.path(plots_dir_2, paste0(group_2_name, "_", orientation_type, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
+
+group_2_parameters <- master_df_nls
+
+# ---- Summary statistics ----
+summary_stats <- master_df_nls %>%
+  summarise(
+    across(c(a, b, c, D0, RMSE, RSS),
+           list(mean = ~mean(.x, na.rm = TRUE),
+                sd   = ~sd(.x, na.rm = TRUE),
+                min  = ~min(.x, na.rm = TRUE),
+                max  = ~max(.x, na.rm = TRUE)))
+  )
+
+write.csv(summary_stats, file.path(plots_dir_2, paste0(group_2_name, "_", orientation_type, "_parameter_summary_NLS", version_suffix, ".csv")), row.names = FALSE)
+
+# Plot density parameters
+parameters_group_2 <- group_2_parameters %>%
+  pivot_longer(
+    cols = -Subject,
+    names_to = "Parameter",
+    values_to = "Value"
+  )
+
+p_group_2 <- ggplot(parameters_group_2, aes(x = Value)) +
+  geom_density(fill = "#ff7f0e", alpha = 0.5) +
+  facet_wrap(~ Parameter, scales = "free") +
+  theme_bw() +
+  labs(title = paste0("Density Plots for ", tools::toTitleCase(orientation_type), " ", group_2_name, " Parameters"), x = "Value", y = "Density")
+
+ggsave(
+  filename = file.path(plots_dir_2, paste0(group_2_name, "_", orientation_type, "_parameter_densities.png")),
+  plot = p_group_2,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+```
+
+Now export plits and potentially run comparisons
+
+```{r Export Summary, eval=comparison_mode}
+# ---- This chunk only runs if comparison_mode is TRUE ----
+
+plots_dir <- "Parameter Summaries"
+if (!dir.exists(plots_dir)) dir.create(plots_dir)
+
+# ---- Summary statistics ----
+library(openxlsx)
+
+### --- Your datasets ---
+datasets <- list()
+datasets[[group_1_name]] <- group_1_parameters
+datasets[[group_2_name]] <- group_2_parameters
+
+
+### --- Function to compute CI limits for the mean ---
+mean_ci <- function(values, level = 0.95) {
+  n <- sum(!is.na(values))
+  m <- mean(values, na.rm = TRUE)
+  s <- sd(values, na.rm = TRUE)
+  
+  if (n < 2 || is.na(s)) {
+    return(c(lower = NA, upper = NA))
+  }
+  
+  error <- qt((1 + level)/2, df = n - 1) * s / sqrt(n)
+  
+  c(lower = m - error, upper = m + error)
+}
+
+### --- Function to summarize one dataset ---
+summarize_dataset <- function(df) {
+  
+  numeric_vars <- c("a", "b", "c", "D0", "RMSE", "RSS")
+  
+  stats <- lapply(numeric_vars, function(var) {
+    vals <- df[[var]]
+    m <- mean(vals, na.rm = TRUE)
+    sd_val <- sd(vals, na.rm = TRUE)
+    min_val <- min(vals, na.rm = TRUE)
+    max_val <- max(vals, na.rm = TRUE)
+    n_val <- length(unique(df$Subject))
+    ci <- mean_ci(vals, level = 0.95)
+    
+    c(
+      Mean = m,
+      SD = sd_val,
+      Min = min_val,
+      Max = max_val,
+      N = n_val,
+      CI_lower = ci[1],
+      CI_upper = ci[2]
+    )
+  })
+  
+  stats_df <- as.data.frame(do.call(cbind, stats))
+  colnames(stats_df) <- numeric_vars
+  stats_df$Statistic <- rownames(stats_df)
+  stats_df <- stats_df[, c("Statistic", numeric_vars)]
+  
+  rownames(stats_df) <- NULL
+  return(stats_df)
+}
+
+### --- Create Excel workbook ---
+wb <- createWorkbook()
+
+### --- Add one sheet per dataset ---
+for (nm in names(datasets)) {
+  
+  summary_df <- summarize_dataset(datasets[[nm]])
+  
+  # Round values except N
+  for (col in names(summary_df)) {
+    if (col != "Statistic") {
+      summary_df[[col]] <- round(summary_df[[col]], 3)
+    }
+  }
+  
+  addWorksheet(wb, nm)
+  writeData(wb, nm, summary_df)
+}
+
+### --- Wilcoxon tests: Group 1 vs Group 2 (horizontal) ---
+wilcox_results <- data.frame(
+  Parameter = c("a", "b", "c", "D0", "RMSE"),
+  W_statistic = c(
+    wilcox.test(group_1_parameters$a, group_2_parameters$a)$statistic,
+    wilcox.test(group_1_parameters$b, group_2_parameters$b)$statistic,
+    wilcox.test(group_1_parameters$c, group_2_parameters$c)$statistic,
+    wilcox.test(group_1_parameters$D0, group_2_parameters$D0)$statistic,
+    wilcox.test(group_1_parameters$RMSE, group_2_parameters$RMSE)$statistic
+  ),
+  p_value = c(
+    wilcox.test(group_1_parameters$a, group_2_parameters$a)$p.value,
+    wilcox.test(group_1_parameters$b, group_2_parameters$b)$p.value,
+    wilcox.test(group_1_parameters$c, group_2_parameters$c)$p.value,
+    wilcox.test(group_1_parameters$D0, group_2_parameters$D0)$p.value,
+    wilcox.test(group_1_parameters$RMSE, group_2_parameters$RMSE)$p.value
+  )
+)
+
+# Add Wilcoxon test results as a new sheet
+wilcox_sheet_name <- paste0("Wilcoxon_", group_1_name, "_v_", group_2_name)
+addWorksheet(wb, wilcox_sheet_name)
+writeData(wb, wilcox_sheet_name, wilcox_results)
+
+### --- Save workbook ---
+saveWorkbook(wb, file = paste0("Parameter Summaries/", tools::toTitleCase(orientation_type), "_Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
+```
+
+Comparisons and violin plots, if necessary
+
+```{r parameter density and violin plots, eval=comparison_mode}
+# ---- This chunk only runs if comparison_mode is TRUE ----
+
+ggsave(
+  filename = file.path(plots_dir, paste0(group_2_name, "_", orientation_type, "_parameter_densities.png")),
+  plot = p_group_2,
+  width = 10,
+  height = 8,
+  dpi = 300)
+ggsave(
+  filename = file.path(plots_dir, paste0(group_1_name, "_", orientation_type, "_parameter_densities.png")),
+  plot = p_group_1,
+  width = 10,
+  height = 8,
+  dpi = 300)
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Combine datasets into one long-format dataframe
+datasets_long <- bind_rows(
+  group_2_parameters %>% mutate(Dataset = group_2_name),
+  group_1_parameters %>% mutate(Dataset = group_1_name)
+)
+
+# Variables to plot
+vars_to_plot <- c("a", "b", "c", "RMSE")
+
+# Convert to long format
+df_long <- datasets_long %>%
+  select(all_of(vars_to_plot), Dataset) %>%
+  pivot_longer(
+    cols = all_of(vars_to_plot),
+    names_to = "Variable",
+    values_to = "Value"
+  )
+
+# Define colors for the two groups
+group_colors <- setNames(c("#2ca02c", "#ff7f0e"), c(group_1_name, group_2_name))
+
+# Violin plot
+combined_violin <- ggplot(df_long, aes(x = Dataset, y = Value, fill = Dataset)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = paste0("Violin Plots of ", tools::toTitleCase(orientation_type), " Density Parameters by Dataset"),
+    x = "Dataset",
+    y = "Value"
+  ) +
+  scale_fill_manual(values = group_colors) +
+  theme(legend.position = "none")
+
+ggsave(
+  filename = file.path(plots_dir, paste0("violin_", orientation_type, "_all_parameters.png")),
+  plot = combined_violin,
+  dpi = 300)
+
+
+# Individual Violin Plots
+
+for (var in vars_to_plot) {
+  
+  df_var <- df_long %>% filter(Variable == var)
+  
+  # Base violin plot (common to both)
+  p_base <- ggplot(df_var, aes(x = Dataset, y = Value, fill = Dataset)) +
+    geom_violin(trim = FALSE, alpha = 0.6) +
+    geom_boxplot(width = 0.05, fill = "white", outlier.shape = NA) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste("Violin Plot of", var, "by Dataset (", tools::toTitleCase(orientation_type), ")"),
+      x = "Dataset",
+      y = var
+    ) +
+    scale_fill_manual(values = group_colors) +
+    theme(legend.position = "none")
+  
+  # --- Original (auto-scaled) ---
+  ggsave(
+    filename = file.path(plots_dir, paste0("violin_", orientation_type, "_", var, ".png")),
+    plot = p_base,
+    width = 6, height = 5,
+    dpi = 300
+  )
+  
+  # --- Scaled version (only max constrained for a and c) ---
+  p_scaled <- p_base
+  if (var == "a") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 300))
+  } else if (var == "c") {
+    p_scaled <- p_scaled + coord_cartesian(ylim = c(NA, 2))
+  }
+  
+  ggsave(
+    filename = file.path(plots_dir, paste0("scaled_violin_", orientation_type, "_", var, ".png")),
+    plot = p_scaled,
+    width = 6, height = 5,
+    dpi = 300
+  )
+}
+```
