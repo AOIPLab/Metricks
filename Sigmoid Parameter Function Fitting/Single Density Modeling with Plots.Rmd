@@ -12,13 +12,13 @@ date: "2025-11-10"
                           Input File Documentation
 ================================================================================
 
-This script requires two input csv files:
+This script requires two input files (CSV or XLSX supported):
 
-1. Data input file (e.g., JC_0007.csv)
+1. Data input file (e.g., JC_0007.csv or JC_0007.xlsx)
    - Format: no headers
    - Column 1: E (Eccentricity)
    - Column 2: D (Density)
-   - The filename (without .csv) will be used as the Subject ID
+   - The filename (without extension) will be used as the Subject ID
    
    Example:
    0,150000
@@ -26,9 +26,9 @@ This script requires two input csv files:
    20,138000
    ...
 
-2. Parameter ranges file: parameter_ranges.csv (must be in same folder as script)
+2. Parameter ranges file: parameter_ranges.csv or parameter_ranges.xlsx (must be in same folder as script)
    - Format: no headers
-   - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average for their data as the seed)
+   - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average parameters for seed; PMID: 40767443)
    - Row 2: b_min, b_max, b_start
    - Row 3: c_min, c_max, c_start
    
@@ -51,19 +51,36 @@ version_number <- as.integer(readline(prompt = "Enter version number (integer): 
 run_date <- format(Sys.Date(), "%m%d%y")
 
 # Prompt for input file
-cat("\nNote: CSV file should have NO headers. Column 1 = Eccentricity (E), Column 2 = Density (D)\n")
-cat("The filename (without .csv) will be used as the Subject ID.\n")
-input_file <- readline(prompt = "Enter input CSV filename (e.g., JC_0007.csv): ")
+cat("\nNote: File should have NO headers. Column 1 = Eccentricity (E), Column 2 = Density (D)\n")
+cat("Supported formats: .csv or .xlsx\n")
+cat("The filename (without extension) will be used as the Subject ID.\n")
+input_file <- readline(prompt = "Enter input filename (e.g., JC_0007.csv or JC_0007.xlsx): ")
 
-# Extract subject ID from filename (remove .csv extension)
-subject_id <- sub("\\.csv$", "", basename(input_file))
+# Extract subject ID from filename (remove extension)
+subject_id <- sub("\\.(csv|xlsx)$", "", basename(input_file), ignore.case = TRUE)
 
-# Prompt for orientation type
-cat("\nOrientation options: horizontal, radial, vertical\n")
-orientation_type <- tolower(readline(prompt = "Enter orientation type: (horizontal, radial, vertical)"))
+# Helper function to read CSV or XLSX files
+read_data_file <- function(filepath, col_names = FALSE) {
+  ext <- tolower(tools::file_ext(filepath))
+  if (ext == "xlsx") {
+    library(readxl)
+    return(read_excel(filepath, col_names = col_names))
+  } else if (ext == "csv") {
+    return(read.csv(filepath, header = col_names, stringsAsFactors = FALSE))
+  } else {
+    stop("Unsupported file format. Please use .csv or .xlsx")
+  }
+}
 
-# Load parameter ranges from parameter_ranges.csv (assumed to be in same folder as script)
-param_ranges <- read.csv("parameter_ranges.csv", header = FALSE)
+# Load parameter ranges (assumed to be in same folder as script)
+# Check for xlsx first, then csv
+if (file.exists("parameter_ranges.xlsx")) {
+  param_ranges <- read_data_file("parameter_ranges.xlsx", col_names = FALSE)
+} else if (file.exists("parameter_ranges.csv")) {
+  param_ranges <- read_data_file("parameter_ranges.csv", col_names = FALSE)
+} else {
+  stop("Parameter ranges file not found. Please provide parameter_ranges.csv or parameter_ranges.xlsx")
+}
 
 # Convert all values to numeric
 a_min <- as.numeric(param_ranges[1, 1])
@@ -96,7 +113,8 @@ library(ggplot2)
 library(zoo)
 
 # Load input file (no headers, col1=E, col2=D)
-data_single <- read.csv(input_file, header = FALSE)
+data_single <- read_data_file(input_file, col_names = FALSE)
+data_single <- as.data.frame(data_single)
 colnames(data_single) <- c("E", "D")
 
 # Convert to numeric (in case read as character)
@@ -243,7 +261,7 @@ cat("RSS =", ifelse(is.numeric(RSS) && !is.na(RSS), round(RSS, 4), "NA"), "\n")
 cat("=================================\n")
 
 # ---- Write results to CSV (in plots folder) ----
-write.csv(results_df, file.path(plots_dir, paste0(subject_id, "_", orientation_type, "_parameter_output", version_suffix, ".csv")), row.names = FALSE)
+write.csv(results_df, file.path(plots_dir, paste0(subject_id, "_parameter_output", version_suffix, ".csv")), row.names = FALSE)
 ```
 
 ```{r generate plot}
@@ -272,7 +290,7 @@ if(!all(is.na(params))) {
   # ---- Save plot ----
   safe_subject <- gsub("[^A-Za-z0-9_]", "_", subject_id)
   ggsave(
-    filename = file.path(plots_dir, paste0("fit_plot_", safe_subject, "_", orientation_type, version_suffix, ".png")),
+    filename = file.path(plots_dir, paste0("fit_plot_", safe_subject, version_suffix, ".png")),
     plot = gg,
     width = 6, height = 4, dpi = 300
   )
@@ -280,7 +298,7 @@ if(!all(is.na(params))) {
   # ---- Display plot ----
   print(gg)
   
-  cat("\nPlot saved to:", file.path(plots_dir, paste0("fit_plot_", safe_subject, "_", orientation_type, version_suffix, ".png")), "\n")
+  cat("\nPlot saved to:", file.path(plots_dir, paste0("fit_plot_", safe_subject, version_suffix, ".png")), "\n")
 } else {
   cat("\nWarning: Model fitting failed. No plot generated.\n")
 }

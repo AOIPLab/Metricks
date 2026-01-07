@@ -12,9 +12,9 @@ date: "2025-11-10"
                           Input File Documentation
 ================================================================================
 
-This script requires 2-3 input csv files depending on comparison mode:
+This script requires 2-3 input files depending on comparison mode (CSV or XLSX supported):
 
-1. Data input file(s) (e.g., Density_Extractions_Radial.csv)
+1. Data input file(s) (e.g., Density_Extractions_Batch.csv or Density_Extractions_Batch.xlsx)
    - Format: paired columns (each subject has E and D columns)
    - Row 1: Subject IDs (repeated for each E,D pair)
    - Rows 2+: Paired values (E1,D1,E2,D2,E3,D3,...)
@@ -31,7 +31,7 @@ This script requires 2-3 input csv files depending on comparison mode:
    If comparison mode = yes: Two data files required (Group 1 and Group 2)
    If comparison mode = no:  One data file required
 
-2. Parameter ranges file: parameter_ranges.csv (must be in same folder as script)
+2. Parameter ranges file: parameter_ranges.csv or parameter_ranges.xlsx (must be in same folder as script)
    - Format: no headers
    - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average for their data as the seed)
    - Row 2: b_min, b_max, b_start
@@ -55,15 +55,12 @@ version_number <- as.integer(readline(prompt = "Enter version number (integer): 
 # Use current date automatically
 run_date <- format(Sys.Date(), "%m%d%y")
 
-# Prompt for orientation type
-cat("\nOrientation options: horizontal, radial, vertical\n")
-orientation_type <- tolower(readline(prompt = "Enter orientation type: horizontal/vertical/radial"))
-
 # Prompt for first input file
-cat("\nNote: CSV should be in PAIRED COLUMN format.\n")
+cat("\nNote: File should be in PAIRED COLUMN format.\n")
+cat("  Supported formats: .csv or .xlsx\n")
 cat("  Row 1 = Subject IDs (repeated for each E,D pair)\n")
 cat("  Rows 2+ = Paired columns (E1,D1,E2,D2,...)\n")
-input_file_1 <- readline(prompt = "Enter first input CSV filename (e.g., Density_Extractions_Radial.csv): ")
+input_file_1 <- readline(prompt = "Enter first input filename (e.g., Density_Extractions_Batch.csv or .xlsx): ")
 
 # Prompt for comparison mode
 comparison_mode <- tolower(readline(prompt = "Do you want to compare two groups? (yes/no): "))
@@ -71,15 +68,34 @@ comparison_mode <- comparison_mode %in% c("yes", "y")
 
 # Prompt for second input file if comparison mode is enabled
 if (comparison_mode) {
-  input_file_2 <- readline(prompt = "Enter second input CSV filename (e.g., control.csv): ")
+  input_file_2 <- readline(prompt = "Enter second input filename (e.g., control.csv or control.xlsx): ")
   group_1_name <- readline(prompt = "Enter name for Group 1 (first file): ")
   group_2_name <- readline(prompt = "Enter name for Group 2 (second file): ")
 } else {
   group_1_name <- ""  # No group name prefix for single group analysis
 }
 
-# Load parameter ranges from parameter_inputs.csv (assumed to be in same folder as script)
-param_ranges <- read.csv("parameter_ranges.csv", header = FALSE)
+# Helper function to read CSV or XLSX files (raw, no headers)
+read_data_file <- function(filepath, col_names = FALSE) {
+  ext <- tolower(tools::file_ext(filepath))
+  if (ext == "xlsx") {
+    return(as.data.frame(read_excel(filepath, col_names = col_names)))
+  } else if (ext == "csv") {
+    return(read.csv(filepath, header = col_names, stringsAsFactors = FALSE))
+  } else {
+    stop("Unsupported file format. Please use .csv or .xlsx")
+  }
+}
+
+# Load parameter ranges (assumed to be in same folder as script)
+# Check for xlsx first, then csv
+if (file.exists("parameter_ranges.xlsx")) {
+  param_ranges <- read_data_file("parameter_ranges.xlsx", col_names = FALSE)
+} else if (file.exists("parameter_ranges.csv")) {
+  param_ranges <- read_data_file("parameter_ranges.csv", col_names = FALSE)
+} else {
+  stop("Parameter ranges file not found. Please provide parameter_ranges.csv or parameter_ranges.xlsx")
+}
 
 # Convert all values to numeric
 a_min <- as.numeric(param_ranges[1, 1])
@@ -101,7 +117,7 @@ cat("  c:", c_min, "-", c_max, "(start:", c_start, ")\n")
 version_suffix <- paste0("_v", version_number, "_", run_date)
 ```
 
-This first part loads horizontal (or however specified) density data and fits a nonlinear least squares regression model on them to define optimal parameters.
+This first part loads density data and fits a nonlinear least squares regression model on them to define optimal parameters.
 
 ```{r define model}
 library(minpack.lm)
@@ -113,10 +129,10 @@ library(zoo)
 library(openxlsx)
 library(readxl)
 
-# Function to parse paired column format
+# Function to parse paired column format (supports CSV and XLSX)
 parse_paired_columns <- function(filepath) {
-  # Read raw data
-  raw_data <- read.csv(filepath, header = FALSE, stringsAsFactors = FALSE)
+  # Read raw data based on file extension
+  raw_data <- read_data_file(filepath, col_names = FALSE)
   
   # Row 1 contains subject IDs (repeated for E,D pairs)
   subject_row <- as.character(raw_data[1, ])
@@ -246,9 +262,9 @@ long_df <- data_group_1 %>%
 
 # ---- Create plots folder ----
 if (group_1_name == "") {
-  plots_dir_1 <- paste(orientation_type, "Plots", sep = " ")
+  plots_dir_1 <- "Fit Plots"
 } else {
-  plots_dir_1 <- paste0(group_1_name, orientation_type, " Plots")
+  plots_dir_1 <- paste0(group_1_name, "Fit Plots")
 }
 if (!dir.exists(plots_dir_1)) dir.create(plots_dir_1)
 
@@ -292,7 +308,7 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
       )
     
     safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
-    ggsave(file.path(plots_dir_1, paste0("fit_plot_", safe_subject, "_", orientation_type, ".png")), gg,
+    ggsave(file.path(plots_dir_1, paste0("fit_plot_", safe_subject, ".png")), gg,
            width = 6, height = 4, dpi = 300)
   }
   
@@ -303,7 +319,7 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
 
 # ---- Write results (to plots folder) ----
 # Build filename prefix (handle empty group name)
-file_prefix_1 <- if (group_1_name == "") orientation_type else paste0(group_1_name, "_", orientation_type)
+file_prefix_1 <- if (group_1_name == "") "density" else group_1_name
 
 write.csv(master_df_nls, file.path(plots_dir_1, paste0(file_prefix_1, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
 
@@ -330,9 +346,9 @@ parameters_group_1 <- group_1_parameters %>%
   )
 
 plot_title_1 <- if (group_1_name == "") {
-  paste0("Density Plots for ", tools::toTitleCase(orientation_type), " Parameters")
+  "Density Plots for Parameters"
 } else {
-  paste0("Density Plots for ", tools::toTitleCase(orientation_type), " ", group_1_name, " Parameters")
+  paste0("Density Plots for ", group_1_name, " Parameters")
 }
 
 p_group_1 <- ggplot(parameters_group_1, aes(x = Value)) +
@@ -402,7 +418,7 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
       )
     
     safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
-    ggsave(file.path(plots_dir_2, paste0("fit_plot_", safe_subject, "_", orientation_type, ".png")), gg,
+    ggsave(file.path(plots_dir_2, paste0("fit_plot_", safe_subject, ".png")), gg,
            width = 6, height = 4, dpi = 300)
   }
   
@@ -412,7 +428,7 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
 
 
 # ---- Write results (to plots folder) ----
-write.csv(master_df_nls, file.path(plots_dir_2, paste0(group_2_name, "_", orientation_type, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
+write.csv(master_df_nls, file.path(plots_dir_2, paste0(group_2_name, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
 
 group_2_parameters <- master_df_nls
 
@@ -426,7 +442,7 @@ summary_stats <- master_df_nls %>%
                 max  = ~max(.x, na.rm = TRUE)))
   )
 
-write.csv(summary_stats, file.path(plots_dir_2, paste0(group_2_name, "_", orientation_type, "_parameter_summary_NLS", version_suffix, ".csv")), row.names = FALSE)
+write.csv(summary_stats, file.path(plots_dir_2, paste0(group_2_name, "_parameter_summary_NLS", version_suffix, ".csv")), row.names = FALSE)
 
 # Plot density parameters
 parameters_group_2 <- group_2_parameters %>%
@@ -440,10 +456,10 @@ p_group_2 <- ggplot(parameters_group_2, aes(x = Value)) +
   geom_density(fill = "#ff7f0e", alpha = 0.5) +
   facet_wrap(~ Parameter, scales = "free") +
   theme_bw() +
-  labs(title = paste0("Density Plots for ", tools::toTitleCase(orientation_type), " ", group_2_name, " Parameters"), x = "Value", y = "Density")
+  labs(title = paste0("Density Plots for ", group_2_name, " Parameters"), x = "Value", y = "Density")
 
 ggsave(
-  filename = file.path(plots_dir_2, paste0(group_2_name, "_", orientation_type, "_parameter_densities.png")),
+  filename = file.path(plots_dir_2, paste0(group_2_name, "_parameter_densities.png")),
   plot = p_group_2,
   width = 10,
   height = 8,
@@ -451,7 +467,7 @@ ggsave(
 )
 ```
 
-Now export plits and potentially run comparisons
+Now export plots and potentially run comparisons
 
 ```{r Export Summary, eval=comparison_mode}
 # ---- This chunk only runs if comparison_mode is TRUE ----
@@ -561,7 +577,7 @@ addWorksheet(wb, wilcox_sheet_name)
 writeData(wb, wilcox_sheet_name, wilcox_results)
 
 ### --- Save workbook ---
-saveWorkbook(wb, file = paste0("Parameter Summaries/", tools::toTitleCase(orientation_type), "_Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
+saveWorkbook(wb, file = paste0("Parameter Summaries/Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
 ```
 
 Comparisons and violin plots, if necessary
@@ -570,13 +586,13 @@ Comparisons and violin plots, if necessary
 # ---- This chunk only runs if comparison_mode is TRUE ----
 
 ggsave(
-  filename = file.path(plots_dir, paste0(group_2_name, "_", orientation_type, "_parameter_densities.png")),
+  filename = file.path(plots_dir, paste0(group_2_name, "_parameter_densities.png")),
   plot = p_group_2,
   width = 10,
   height = 8,
   dpi = 300)
 ggsave(
-  filename = file.path(plots_dir, paste0(group_1_name, "_", orientation_type, "_parameter_densities.png")),
+  filename = file.path(plots_dir, paste0(group_1_name, "_parameter_densities.png")),
   plot = p_group_1,
   width = 10,
   height = 8,
@@ -614,7 +630,7 @@ combined_violin <- ggplot(df_long, aes(x = Dataset, y = Value, fill = Dataset)) 
   facet_wrap(~ Variable, scales = "free_y") +
   theme_minimal() +
   labs(
-    title = paste0("Violin Plots of ", tools::toTitleCase(orientation_type), " Density Parameters by Dataset"),
+    title = "Violin Plots of Density Parameters by Dataset",
     x = "Dataset",
     y = "Value"
   ) +
@@ -622,7 +638,7 @@ combined_violin <- ggplot(df_long, aes(x = Dataset, y = Value, fill = Dataset)) 
   theme(legend.position = "none")
 
 ggsave(
-  filename = file.path(plots_dir, paste0("violin_", orientation_type, "_all_parameters.png")),
+  filename = file.path(plots_dir, "violin_all_parameters.png"),
   plot = combined_violin,
   dpi = 300)
 
@@ -639,7 +655,7 @@ for (var in vars_to_plot) {
     geom_boxplot(width = 0.05, fill = "white", outlier.shape = NA) +
     theme_minimal(base_size = 14) +
     labs(
-      title = paste("Violin Plot of", var, "by Dataset (", tools::toTitleCase(orientation_type), ")"),
+      title = paste("Violin Plot of", var, "by Dataset"),
       x = "Dataset",
       y = var
     ) +
@@ -648,7 +664,7 @@ for (var in vars_to_plot) {
   
   # --- Original (auto-scaled) ---
   ggsave(
-    filename = file.path(plots_dir, paste0("violin_", orientation_type, "_", var, ".png")),
+    filename = file.path(plots_dir, paste0("violin_", var, ".png")),
     plot = p_base,
     width = 6, height = 5,
     dpi = 300
@@ -663,7 +679,7 @@ for (var in vars_to_plot) {
   }
   
   ggsave(
-    filename = file.path(plots_dir, paste0("scaled_violin_", orientation_type, "_", var, ".png")),
+    filename = file.path(plots_dir, paste0("scaled_violin_", var, ".png")),
     plot = p_scaled,
     width = 6, height = 5,
     dpi = 300
