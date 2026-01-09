@@ -6,14 +6,13 @@ output:
   word_document: default
 date: "2025-11-10"
 ---
-Code created by Aliya Siddiqui from 11/2025-1/2026.
-Last update on 1/7/2026
+
 <!--
 ================================================================================
                           Input File Documentation
 ================================================================================
 
-This script requires two input files (CSV or XLSX supported):
+This script requires a folder path containing two files (CSV or XLSX supported):
 
 1. Data input file (e.g., JC_0007.csv or JC_0007.xlsx)
    - Format: no headers
@@ -27,7 +26,7 @@ This script requires two input files (CSV or XLSX supported):
    20,138000
    ...
 
-2. Parameter ranges file: parameter_ranges.csv or parameter_ranges.xlsx (must be in same folder as script)
+2. Parameter ranges file: parameter_ranges.csv or parameter_ranges.xlsx (must be in same folder as input data)
    - Format: no headers
    - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average parameters for seed; PMID: 40767443)
    - Row 2: b_min, b_max, b_start
@@ -51,14 +50,21 @@ version_number <- as.integer(readline(prompt = "Enter version number (integer): 
 # Use current date automatically
 run_date <- format(Sys.Date(), "%m%d%y")
 
-# Prompt for input file
+# Prompt for folder path
+cat("\nNote: Provide the folder path containing your input file and parameter_ranges file.\n")
+input_folder <- readline(prompt = "Enter folder path: ")
+
+# Prompt for input filename
 cat("\nNote: File should have NO headers. Column 1 = Eccentricity (E), Column 2 = Density (D)\n")
 cat("Supported formats: .csv or .xlsx\n")
 cat("The filename (without extension) will be used as the Subject ID.\n")
-input_file <- readline(prompt = "Enter input filename (e.g., JC_0007.csv or JC_0007.xlsx): ")
+input_filename <- readline(prompt = "Enter input filename (e.g., JC_0007.csv or JC_0007.xlsx): ")
+
+# Build full path to input file
+input_file <- file.path(input_folder, input_filename)
 
 # Extract subject ID from filename (remove extension)
-subject_id <- sub("\\.(csv|xlsx)$", "", basename(input_file), ignore.case = TRUE)
+subject_id <- sub("\\.(csv|xlsx)$", "", basename(input_filename), ignore.case = TRUE)
 
 # Helper function to read CSV or XLSX files
 read_data_file <- function(filepath, col_names = FALSE) {
@@ -73,14 +79,17 @@ read_data_file <- function(filepath, col_names = FALSE) {
   }
 }
 
-# Load parameter ranges (assumed to be in same folder as script)
+# Load parameter ranges (assumed to be in same folder as input data)
 # Check for xlsx first, then csv
-if (file.exists("parameter_ranges.xlsx")) {
-  param_ranges <- read_data_file("parameter_ranges.xlsx", col_names = FALSE)
-} else if (file.exists("parameter_ranges.csv")) {
-  param_ranges <- read_data_file("parameter_ranges.csv", col_names = FALSE)
+param_xlsx <- file.path(input_folder, "parameter_ranges.xlsx")
+param_csv <- file.path(input_folder, "parameter_ranges.csv")
+
+if (file.exists(param_xlsx)) {
+  param_ranges <- read_data_file(param_xlsx, col_names = FALSE)
+} else if (file.exists(param_csv)) {
+  param_ranges <- read_data_file(param_csv, col_names = FALSE)
 } else {
-  stop("Parameter ranges file not found. Please provide parameter_ranges.csv or parameter_ranges.xlsx")
+  stop(paste("Parameter ranges file not found in", input_folder, "- Please provide parameter_ranges.csv or parameter_ranges.xlsx"))
 }
 
 # Convert all values to numeric

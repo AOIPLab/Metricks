@@ -6,34 +6,31 @@ output:
   word_document: default
 date: "2025-11-10"
 ---
-Code created by Aliya Siddiqui from 11/2025-1/2026.
-Last update on 1/7/2026
 
 <!--
 ================================================================================
                           Input File Documentation
 ================================================================================
 
-This script requires 2-3 input files depending on comparison mode (CSV or XLSX supported):
+This script requires 1-2 input folders depending on comparison mode, plus a parameter file.
 
-1. Data input file(s) (e.g., Density_Extractions_Batch.csv or Density_Extractions_Batch.xlsx)
-   - Format: paired columns (each subject has E and D columns)
-   - Row 1: Subject IDs (repeated for each E,D pair)
-   - Rows 2+: Paired values (E1,D1,E2,D2,E3,D3,...)
+1. Data input folder(s) containing individual subject files (CSV or XLSX supported)
+   - Each file = one subject
+   - Format: no headers
+   - Column 1: E (Eccentricity)
+   - Column 2: D (Density)
+   - The filename (without extension) will be used as the Subject ID
    
-   Example:
-   JC_0007,JC_0007,JC_0077,JC_0077,JC_0200,JC_0200
-   0,161222,0,183470,0,176102
-   1,161257,1,183556,1,176168
-   2,161295,2,183730,2,176142
+   Example file (JC_0007.csv):
+   0,150000
+   10,145000
+   20,138000
    ...
 
-   Each subject's data is in column pairs: (Eccentricity, Density)
+   If comparison mode = yes: Two folders required (Group 1 and Group 2)
+   If comparison mode = no:  One folder required
 
-   If comparison mode = yes: Two data files required (Group 1 and Group 2)
-   If comparison mode = no:  One data file required
-
-2. Parameter ranges file: parameter_ranges.csv or parameter_ranges.xlsx (must be in same folder as script)
+2. Parameter ranges file: parameter_ranges.csv or parameter_ranges.xlsx (must be in same folder as input data)
    - Format: no headers
    - Row 1: a_min, a_max, a_start (this is the seed value, Wolf used average for their data as the seed)
    - Row 2: b_min, b_max, b_start
@@ -57,22 +54,22 @@ version_number <- as.integer(readline(prompt = "Enter version number (integer): 
 # Use current date automatically
 run_date <- format(Sys.Date(), "%m%d%y")
 
-# Prompt for first input file
-cat("\nNote: File should be in PAIRED COLUMN format.\n")
+# Prompt for first input folder
+cat("\nNote: Provide a folder path containing individual subject files.\n")
+cat("  Each file should have NO headers, with Column 1 = E, Column 2 = D\n")
 cat("  Supported formats: .csv or .xlsx\n")
-cat("  Row 1 = Subject IDs (repeated for each E,D pair)\n")
-cat("  Rows 2+ = Paired columns (E1,D1,E2,D2,...)\n")
-input_file_1 <- readline(prompt = "Enter first input filename (e.g., Density_Extractions_Batch.csv or .xlsx): ")
+cat("  Subject ID will be extracted from filename.\n")
+input_folder_1 <- readline(prompt = "Enter path to folder containing subject files: ")
 
 # Prompt for comparison mode
 comparison_mode <- tolower(readline(prompt = "Do you want to compare two groups? (yes/no): "))
 comparison_mode <- comparison_mode %in% c("yes", "y")
 
-# Prompt for second input file if comparison mode is enabled
+# Prompt for second input folder if comparison mode is enabled
 if (comparison_mode) {
-  input_file_2 <- readline(prompt = "Enter second input filename (e.g., control.csv or control.xlsx): ")
-  group_1_name <- readline(prompt = "Enter name for Group 1 (first file): ")
-  group_2_name <- readline(prompt = "Enter name for Group 2 (second file): ")
+  input_folder_2 <- readline(prompt = "Enter path to second folder (e.g., control subjects): ")
+  group_1_name <- readline(prompt = "Enter name for Group 1 (first folder): ")
+  group_2_name <- readline(prompt = "Enter name for Group 2 (second folder): ")
 } else {
   group_1_name <- ""  # No group name prefix for single group analysis
 }
@@ -89,14 +86,17 @@ read_data_file <- function(filepath, col_names = FALSE) {
   }
 }
 
-# Load parameter ranges (assumed to be in same folder as script)
+# Load parameter ranges (assumed to be in same folder as input data)
 # Check for xlsx first, then csv
-if (file.exists("parameter_ranges.xlsx")) {
-  param_ranges <- read_data_file("parameter_ranges.xlsx", col_names = FALSE)
-} else if (file.exists("parameter_ranges.csv")) {
-  param_ranges <- read_data_file("parameter_ranges.csv", col_names = FALSE)
+param_xlsx <- file.path(input_folder_1, "parameter_ranges.xlsx")
+param_csv <- file.path(input_folder_1, "parameter_ranges.csv")
+
+if (file.exists(param_xlsx)) {
+  param_ranges <- read_data_file(param_xlsx, col_names = FALSE)
+} else if (file.exists(param_csv)) {
+  param_ranges <- read_data_file(param_csv, col_names = FALSE)
 } else {
-  stop("Parameter ranges file not found. Please provide parameter_ranges.csv or parameter_ranges.xlsx")
+  stop(paste("Parameter ranges file not found in", input_folder_1, "- Please provide parameter_ranges.csv or parameter_ranges.xlsx"))
 }
 
 # Convert all values to numeric
@@ -131,38 +131,46 @@ library(zoo)
 library(openxlsx)
 library(readxl)
 
-# Function to parse paired column format (supports CSV and XLSX)
-parse_paired_columns <- function(filepath) {
-  # Read raw data based on file extension
-  raw_data <- read_data_file(filepath, col_names = FALSE)
+# Function to load all subject files from a folder (supports CSV and XLSX)
+load_subjects_from_folder <- function(folder_path) {
+  # List all CSV and XLSX files in the folder
+  csv_files <- list.files(folder_path, pattern = "\\.csv$", full.names = TRUE, ignore.case = TRUE)
+  xlsx_files <- list.files(folder_path, pattern = "\\.xlsx$", full.names = TRUE, ignore.case = TRUE)
+  all_files <- c(csv_files, xlsx_files)
   
-  # Row 1 contains subject IDs (repeated for E,D pairs)
-  subject_row <- as.character(raw_data[1, ])
+  if (length(all_files) == 0) {
+    stop(paste("No CSV or XLSX files found in folder:", folder_path))
+  }
   
-  # Get unique subjects (every other column starting from 1)
-  subjects <- unique(subject_row[seq(1, length(subject_row), by = 2)])
+  cat("  Found", length(all_files), "files in folder\n")
   
-  # Data starts from row 2
-  data_rows <- raw_data[-1, ]
-  
-  # Parse each subject's paired columns
+  # Read each file and combine
   all_data <- list()
-  col_idx <- 1
   
-  for (i in seq(1, ncol(data_rows), by = 2)) {
-    if (i + 1 <= ncol(data_rows)) {
-      subject_name <- subject_row[i]
-      E_vals <- as.numeric(data_rows[, i])
-      D_vals <- as.numeric(data_rows[, i + 1])
-      
-      subject_df <- data.frame(
-        Subject = subject_name,
-        E = E_vals,
-        D = D_vals,
-        stringsAsFactors = FALSE
-      )
-      all_data[[length(all_data) + 1]] <- subject_df
+  for (filepath in all_files) {
+    # Extract subject ID from filename (remove extension)
+    filename <- basename(filepath)
+    subject_id <- sub("\\.(csv|xlsx)$", "", filename, ignore.case = TRUE)
+    
+    # Read the file (no headers, 2 columns: E, D)
+    file_data <- read_data_file(filepath, col_names = FALSE)
+    file_data <- as.data.frame(file_data)
+    
+    # Ensure we have at least 2 columns
+    if (ncol(file_data) < 2) {
+      warning(paste("Skipping file with insufficient columns:", filename))
+      next
     }
+    
+    # Create subject data frame
+    subject_df <- data.frame(
+      Subject = subject_id,
+      E = as.numeric(file_data[, 1]),
+      D = as.numeric(file_data[, 2]),
+      stringsAsFactors = FALSE
+    )
+    
+    all_data[[length(all_data) + 1]] <- subject_df
   }
   
   # Combine all subjects
@@ -174,8 +182,9 @@ parse_paired_columns <- function(filepath) {
   return(combined)
 }
 
-# Load first input file (paired column format)
-data_group_1 <- parse_paired_columns(input_file_1)
+# Load subjects from first folder
+cat("Loading subjects from folder 1...\n")
+data_group_1 <- load_subjects_from_folder(input_folder_1)
 
 # Print summary of loaded data
 if (group_1_name == "") {
@@ -184,9 +193,10 @@ if (group_1_name == "") {
   cat(group_1_name, "subjects:", length(unique(data_group_1$Subject)), "\n")
 }
 
-# Load second input file if comparison mode is enabled
+# Load subjects from second folder if comparison mode is enabled
 if (comparison_mode) {
-  data_group_2 <- parse_paired_columns(input_file_2)
+  cat("Loading subjects from folder 2...\n")
+  data_group_2 <- load_subjects_from_folder(input_folder_2)
   cat(group_2_name, "subjects:", length(unique(data_group_2$Subject)), "\n")
 }
 ```
@@ -254,6 +264,55 @@ fit_sigmoid_nls_rss <- function(df, a_lower, a_upper, a_init, b_lower, b_upper, 
     model_fun = model_fun
   )
 }
+
+# ---- Helper function to compute CI limits for the mean ----
+mean_ci <- function(values, level = 0.95) {
+  n <- sum(!is.na(values))
+  m <- mean(values, na.rm = TRUE)
+  s <- sd(values, na.rm = TRUE)
+  
+  if (n < 2 || is.na(s)) {
+    return(c(lower = NA, upper = NA))
+  }
+  
+  error <- qt((1 + level)/2, df = n - 1) * s / sqrt(n)
+  
+  c(lower = m - error, upper = m + error)
+}
+
+# ---- Function to summarize one dataset (nicely formatted) ----
+summarize_dataset <- function(df) {
+  
+  numeric_vars <- c("a", "b", "c", "D0", "RMSE", "RSS")
+  
+  stats <- lapply(numeric_vars, function(var) {
+    vals <- df[[var]]
+    m <- mean(vals, na.rm = TRUE)
+    sd_val <- sd(vals, na.rm = TRUE)
+    min_val <- min(vals, na.rm = TRUE)
+    max_val <- max(vals, na.rm = TRUE)
+    n_val <- length(unique(df$Subject))
+    ci <- mean_ci(vals, level = 0.95)
+    
+    c(
+      Mean = m,
+      SD = sd_val,
+      Min = min_val,
+      Max = max_val,
+      N = n_val,
+      CI_lower = ci[1],
+      CI_upper = ci[2]
+    )
+  })
+  
+  stats_df <- as.data.frame(do.call(cbind, stats))
+  colnames(stats_df) <- numeric_vars
+  stats_df$Statistic <- rownames(stats_df)
+  stats_df <- stats_df[, c("Statistic", numeric_vars)]
+  
+  rownames(stats_df) <- NULL
+  return(stats_df)
+}
 ```
 
 ```{r group1 analysis}
@@ -270,7 +329,7 @@ if (group_1_name == "") {
 }
 if (!dir.exists(plots_dir_1)) dir.create(plots_dir_1)
 
-# ---- Fit all subjects and save plots ----
+# ---- Fit all subjects and save plots + individual CSVs ----
 master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
   
   fit_obj <- fit_sigmoid_nls_rss(x, a_min, a_max, a_start, b_min, b_max, b_start, c_min, c_max, c_start)
@@ -287,6 +346,14 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
   df$Subject <- unique(x$Subject)
   df$RSS <- RSS
   df$RMSE<-RMSE
+  
+  # Reorder columns for output
+  df <- df[, c("Subject", "a", "b", "c", "D0", "RMSE", "RSS")]
+  
+  # Write individual subject CSV
+  safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+  write.csv(df, file.path(plots_dir_1, paste0(safe_subject, "_parameters.csv")), row.names = FALSE)
+  
   # Only plot if fit succeeded
   if(!all(is.na(params))) {
     model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
@@ -309,7 +376,6 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
         )
       )
     
-    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
     ggsave(file.path(plots_dir_1, paste0("fit_plot_", safe_subject, ".png")), gg,
            width = 6, height = 4, dpi = 300)
   }
@@ -318,26 +384,34 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
 }) %>% bind_rows() %>%
   select(Subject, a, b, c, D0, RMSE, RSS)
 
-
-# ---- Write results (to plots folder) ----
-# Build filename prefix (handle empty group name)
-file_prefix_1 <- if (group_1_name == "") "density" else group_1_name
-
-write.csv(master_df_nls, file.path(plots_dir_1, paste0(file_prefix_1, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
-
 group_1_parameters <- master_df_nls
 
-# ---- Summary statistics ----
-summary_stats <- master_df_nls %>%
-  summarise(
-    across(c(a, b, c, D0, RMSE, RSS),
-           list(mean = ~mean(.x, na.rm = TRUE),
-                sd   = ~sd(.x, na.rm = TRUE),
-                min  = ~min(.x, na.rm = TRUE),
-                max  = ~max(.x, na.rm = TRUE)))
-  )
+# ---- Build filename prefix (handle empty group name) ----
+file_prefix_1 <- if (group_1_name == "") "density" else group_1_name
 
-write.csv(summary_stats, file.path(plots_dir_1, paste0(file_prefix_1, "_parameter_summary_NLS", version_suffix, ".csv")), row.names = FALSE)
+# ---- Create nicely formatted summary statistics ----
+summary_stats <- summarize_dataset(master_df_nls)
+
+# Round values for display (except Statistic column)
+for (col in names(summary_stats)) {
+  if (col != "Statistic") {
+    summary_stats[[col]] <- round(summary_stats[[col]], 3)
+  }
+}
+
+# ---- Create combined Excel workbook ----
+wb_1 <- createWorkbook()
+
+# Sheet 1: Individual Results
+addWorksheet(wb_1, "Individual Results")
+writeData(wb_1, "Individual Results", master_df_nls)
+
+# Sheet 2: Summary Statistics
+addWorksheet(wb_1, "Summary Statistics")
+writeData(wb_1, "Summary Statistics", summary_stats)
+
+# Save workbook
+saveWorkbook(wb_1, file.path(plots_dir_1, paste0(file_prefix_1, "_results", version_suffix, ".xlsx")), overwrite = TRUE)
 
 # Plot density parameters
 parameters_group_1 <- group_1_parameters %>%
@@ -380,7 +454,7 @@ long_df <- data_group_2 %>%
 plots_dir_2 <- paste0(group_2_name, " Plots")
 if (!dir.exists(plots_dir_2)) dir.create(plots_dir_2)
 
-# ---- Fit all subjects and save plots ----
+# ---- Fit all subjects and save plots + individual CSVs ----
 master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
   
   fit_obj <- fit_sigmoid_nls_rss(x, a_min, a_max, a_start, b_min, b_max, b_start, c_min, c_max, c_start)
@@ -397,6 +471,14 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
   df$Subject <- unique(x$Subject)
   df$RSS <- RSS
   df$RMSE<-RMSE
+  
+  # Reorder columns for output
+  df <- df[, c("Subject", "a", "b", "c", "D0", "RMSE", "RSS")]
+  
+  # Write individual subject CSV
+  safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
+  write.csv(df, file.path(plots_dir_2, paste0(safe_subject, "_parameters.csv")), row.names = FALSE)
+  
   # Only plot if fit succeeded
   if(!all(is.na(params))) {
     model_pred <- model_fun(x$E, params["a"], params["b"], params["c"])
@@ -419,7 +501,6 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
         )
       )
     
-    safe_subject <- gsub("[^A-Za-z0-9_]", "_", unique(x$Subject))
     ggsave(file.path(plots_dir_2, paste0("fit_plot_", safe_subject, ".png")), gg,
            width = 6, height = 4, dpi = 300)
   }
@@ -428,23 +509,31 @@ master_df_nls <- lapply(split(long_df, long_df$Subject), function(x) {
 }) %>% bind_rows() %>%
   select(Subject, a, b, c, D0, RMSE, RSS)
 
-
-# ---- Write results (to plots folder) ----
-write.csv(master_df_nls, file.path(plots_dir_2, paste0(group_2_name, "_parameter_output_NLS", version_suffix, ".csv")), row.names = FALSE)
-
 group_2_parameters <- master_df_nls
 
-# ---- Summary statistics ----
-summary_stats <- master_df_nls %>%
-  summarise(
-    across(c(a, b, c, D0, RMSE, RSS),
-           list(mean = ~mean(.x, na.rm = TRUE),
-                sd   = ~sd(.x, na.rm = TRUE),
-                min  = ~min(.x, na.rm = TRUE),
-                max  = ~max(.x, na.rm = TRUE)))
-  )
+# ---- Create nicely formatted summary statistics ----
+summary_stats_2 <- summarize_dataset(master_df_nls)
 
-write.csv(summary_stats, file.path(plots_dir_2, paste0(group_2_name, "_parameter_summary_NLS", version_suffix, ".csv")), row.names = FALSE)
+# Round values for display (except Statistic column)
+for (col in names(summary_stats_2)) {
+  if (col != "Statistic") {
+    summary_stats_2[[col]] <- round(summary_stats_2[[col]], 3)
+  }
+}
+
+# ---- Create combined Excel workbook ----
+wb_2 <- createWorkbook()
+
+# Sheet 1: Individual Results
+addWorksheet(wb_2, "Individual Results")
+writeData(wb_2, "Individual Results", master_df_nls)
+
+# Sheet 2: Summary Statistics
+addWorksheet(wb_2, "Summary Statistics")
+writeData(wb_2, "Summary Statistics", summary_stats_2)
+
+# Save workbook
+saveWorkbook(wb_2, file.path(plots_dir_2, paste0(group_2_name, "_results", version_suffix, ".xlsx")), overwrite = TRUE)
 
 # Plot density parameters
 parameters_group_2 <- group_2_parameters %>%
@@ -477,109 +566,118 @@ Now export plots and potentially run comparisons
 plots_dir <- "Parameter Summaries"
 if (!dir.exists(plots_dir)) dir.create(plots_dir)
 
-# ---- Summary statistics ----
-library(openxlsx)
-
-### --- Your datasets ---
-datasets <- list()
-datasets[[group_1_name]] <- group_1_parameters
-datasets[[group_2_name]] <- group_2_parameters
-
-
-### --- Function to compute CI limits for the mean ---
-mean_ci <- function(values, level = 0.95) {
-  n <- sum(!is.na(values))
-  m <- mean(values, na.rm = TRUE)
-  s <- sd(values, na.rm = TRUE)
+# ---- Helper function: Calculate rank-biserial correlation effect size ----
+calc_effect_size <- function(x, y) {
+  # Rank-biserial correlation from Wilcoxon test
+  # r = 1 - (2U)/(n1*n2) where U is the smaller of U1 and U2
+  n1 <- length(na.omit(x))
+  n2 <- length(na.omit(y))
   
-  if (n < 2 || is.na(s)) {
-    return(c(lower = NA, upper = NA))
+  if (n1 == 0 || n2 == 0) return(NA)
+  
+  test <- wilcox.test(x, y, exact = FALSE)
+  U <- test$statistic
+  
+  # Effect size r = 1 - (2U)/(n1*n2)
+  r <- 1 - (2 * U) / (n1 * n2)
+  return(abs(r))  # Return absolute value
+}
+
+# ---- Helper function: Determine significance stars ----
+get_significance <- function(p) {
+  if (is.na(p)) return("NA")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  return("ns")
+}
+
+# ---- Create summaries for both groups ----
+summary_g1 <- summarize_dataset(group_1_parameters)
+summary_g2 <- summarize_dataset(group_2_parameters)
+
+# Round values
+for (col in names(summary_g1)) {
+  if (col != "Statistic") {
+    summary_g1[[col]] <- round(summary_g1[[col]], 3)
+    summary_g2[[col]] <- round(summary_g2[[col]], 3)
   }
-  
-  error <- qt((1 + level)/2, df = n - 1) * s / sqrt(n)
-  
-  c(lower = m - error, upper = m + error)
 }
 
-### --- Function to summarize one dataset ---
-summarize_dataset <- function(df) {
-  
-  numeric_vars <- c("a", "b", "c", "D0", "RMSE", "RSS")
-  
-  stats <- lapply(numeric_vars, function(var) {
-    vals <- df[[var]]
-    m <- mean(vals, na.rm = TRUE)
-    sd_val <- sd(vals, na.rm = TRUE)
-    min_val <- min(vals, na.rm = TRUE)
-    max_val <- max(vals, na.rm = TRUE)
-    n_val <- length(unique(df$Subject))
-    ci <- mean_ci(vals, level = 0.95)
-    
-    c(
-      Mean = m,
-      SD = sd_val,
-      Min = min_val,
-      Max = max_val,
-      N = n_val,
-      CI_lower = ci[1],
-      CI_upper = ci[2]
-    )
-  })
-  
-  stats_df <- as.data.frame(do.call(cbind, stats))
-  colnames(stats_df) <- numeric_vars
-  stats_df$Statistic <- rownames(stats_df)
-  stats_df <- stats_df[, c("Statistic", numeric_vars)]
-  
-  rownames(stats_df) <- NULL
-  return(stats_df)
+# ---- Create side-by-side summary ----
+params <- c("a", "b", "c", "D0", "RMSE", "RSS")
+side_by_side <- data.frame(Statistic = summary_g1$Statistic)
+
+for (param in params) {
+  col_g1 <- paste0(param, " (", group_1_name, ")")
+  col_g2 <- paste0(param, " (", group_2_name, ")")
+  side_by_side[[col_g1]] <- summary_g1[[param]]
+  side_by_side[[col_g2]] <- summary_g2[[param]]
 }
 
-### --- Create Excel workbook ---
-wb <- createWorkbook()
+# ---- Create comprehensive comparison table ----
+comparison_params <- c("a", "b", "c", "D0", "RMSE")
 
-### --- Add one sheet per dataset ---
-for (nm in names(datasets)) {
-  
-  summary_df <- summarize_dataset(datasets[[nm]])
-  
-  # Round values except N
-  for (col in names(summary_df)) {
-    if (col != "Statistic") {
-      summary_df[[col]] <- round(summary_df[[col]], 3)
-    }
-  }
-  
-  addWorksheet(wb, nm)
-  writeData(wb, nm, summary_df)
-}
-
-### --- Wilcoxon tests: Group 1 vs Group 2 (horizontal) ---
-wilcox_results <- data.frame(
-  Parameter = c("a", "b", "c", "D0", "RMSE"),
-  W_statistic = c(
-    wilcox.test(group_1_parameters$a, group_2_parameters$a)$statistic,
-    wilcox.test(group_1_parameters$b, group_2_parameters$b)$statistic,
-    wilcox.test(group_1_parameters$c, group_2_parameters$c)$statistic,
-    wilcox.test(group_1_parameters$D0, group_2_parameters$D0)$statistic,
-    wilcox.test(group_1_parameters$RMSE, group_2_parameters$RMSE)$statistic
-  ),
-  p_value = c(
-    wilcox.test(group_1_parameters$a, group_2_parameters$a)$p.value,
-    wilcox.test(group_1_parameters$b, group_2_parameters$b)$p.value,
-    wilcox.test(group_1_parameters$c, group_2_parameters$c)$p.value,
-    wilcox.test(group_1_parameters$D0, group_2_parameters$D0)$p.value,
-    wilcox.test(group_1_parameters$RMSE, group_2_parameters$RMSE)$p.value
-  )
+comparison_table <- data.frame(
+  Parameter = comparison_params,
+  stringsAsFactors = FALSE
 )
 
-# Add Wilcoxon test results as a new sheet
-wilcox_sheet_name <- paste0("Wilcoxon_", group_1_name, "_v_", group_2_name)
-addWorksheet(wb, wilcox_sheet_name)
-writeData(wb, wilcox_sheet_name, wilcox_results)
+# Add group means
+comparison_table[[paste0(group_1_name, "_Mean")]] <- sapply(comparison_params, function(p) {
+  round(mean(group_1_parameters[[p]], na.rm = TRUE), 3)
+})
 
-### --- Save workbook ---
-saveWorkbook(wb, file = paste0("Parameter Summaries/Decay_Parameter_Summaries", version_suffix, ".xlsx"), overwrite = TRUE)
+comparison_table[[paste0(group_2_name, "_Mean")]] <- sapply(comparison_params, function(p) {
+  round(mean(group_2_parameters[[p]], na.rm = TRUE), 3)
+})
+
+# Add Wilcoxon test results
+comparison_table$W_statistic <- sapply(comparison_params, function(p) {
+  round(wilcox.test(group_1_parameters[[p]], group_2_parameters[[p]], exact = FALSE)$statistic, 2)
+})
+
+comparison_table$p_value <- sapply(comparison_params, function(p) {
+  pval <- wilcox.test(group_1_parameters[[p]], group_2_parameters[[p]], exact = FALSE)$p.value
+  round(pval, 4)
+})
+
+# Add effect sizes
+comparison_table$Effect_Size_r <- sapply(comparison_params, function(p) {
+  r <- calc_effect_size(group_1_parameters[[p]], group_2_parameters[[p]])
+  paste0("r = ", round(r, 3))
+})
+
+# Add significance stars
+comparison_table$Significance <- sapply(comparison_table$p_value, get_significance)
+
+# ---- Create Excel workbook ----
+wb <- createWorkbook()
+
+# Sheet 1: Side-by-Side Summary
+addWorksheet(wb, "Side-by-Side Summary")
+writeData(wb, "Side-by-Side Summary", side_by_side)
+
+# Sheet 2: Statistical Comparisons
+addWorksheet(wb, "Statistical Comparisons")
+writeData(wb, "Statistical Comparisons", comparison_table)
+
+# Sheet 3: Group 1 Summary
+addWorksheet(wb, paste0(group_1_name, " Summary"))
+writeData(wb, paste0(group_1_name, " Summary"), summary_g1)
+
+# Sheet 4: Group 2 Summary
+addWorksheet(wb, paste0(group_2_name, " Summary"))
+writeData(wb, paste0(group_2_name, " Summary"), summary_g2)
+
+# Save workbook
+saveWorkbook(wb, file.path(plots_dir, paste0("Group_Comparison", version_suffix, ".xlsx")), overwrite = TRUE)
+
+cat("\nComparison workbook saved with sheets:\n")
+cat("  1. Side-by-Side Summary\n")
+cat("  2. Statistical Comparisons (Wilcoxon + Effect Sizes)\n")
+cat("  3.", group_1_name, "Summary\n")
+cat("  4.", group_2_name, "Summary\n")
 ```
 
 Comparisons and violin plots, if necessary
