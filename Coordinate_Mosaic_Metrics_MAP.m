@@ -95,6 +95,9 @@ close all force;
 WINDOW_SIZE = [];
 upper_bound = 150; %this is the number of BOUND cells to include
 TRIM = true; % Set to true if you want to trim the outer cells until the number of cells is exactly the upper bound.
+set_seed = 0; % Set seed for the randperm fxn 1 == True 0 == False.
+% Setting seed to true will ensure that the same cones are removed from the
+% window when re
 
 %% Crop the coordinates/image to this size in [scale], and calculate the area from it.
 % If left empty, it uses the size of the image.
@@ -275,6 +278,11 @@ for i=1:size(fnamelist,1)
                         end
                     end
                     
+                    % displaying the ROI from the steps above for debugging
+                    % -MG 3/16/2026
+                    % figure; scatter(coords(:,1),coords(:,2), 10, bound, 'filled');
+                    % title(['Growing ROI line 254. numbound ', num2str(numbound(c))]);
+
 
                     % Then walk it back until we're below the bound
                     while numbound(c) > upper_bound
@@ -300,7 +308,12 @@ for i=1:size(fnamelist,1)
  
                             numbound(c) = sum(bound);
                         end
-                    end    
+                    end   
+
+                    % displaying the ROI from the steps above for debugging
+                    % -MG 3/16/2026
+                    %figure; scatter(coords(:,1),coords(:,2), 10, bound, 'filled');
+                    %title(['Walking ROI back to below upper bound line 288. numbound ', num2str(numbound(c))]);
                     
                     pixelwindowsize(c) = thiswindowsize;                 
 
@@ -366,10 +379,16 @@ for i=1:size(fnamelist,1)
                         
                         ignoreindx = find(bound == 1);
                         % Randomly choose which of the cells to keep from the last iteration to meet the upper bound defined above.
+                        if set_seed == 1
+                            rng(1)
+                        end
                         toremove = randperm(length(ignoreindx), numbound(c)-upper_bound); 
                         ignoreindx = ignoreindx(toremove);
 
-%                         disp(['Need to remove ' num2str(numbound(c)-upper_bound) ' cells to match ' num2str(upper_bound) '.'])
+                        
+
+
+                        % disp(['Need to remove ' num2str(numbound(c)-upper_bound) ' cells to match ' num2str(upper_bound) '.'])
                         % 
                         % rowborders = ([coords(c,2)-(pixelwindowsize(c) /2) coords(c,2)+(pixelwindowsize(c) /2)]);
                         % colborders = ([coords(c,1)-(pixelwindowsize(c) /2) coords(c,1)+(pixelwindowsize(c) /2)]);
@@ -401,11 +420,19 @@ for i=1:size(fnamelist,1)
                         
                         trimlist{c} = ignoreindx;
                         numbound(c) = upper_bound;
+
+                    % displaying the ROI from the steps above for debugging
+                    % -MG 3/16/2026
+                    %figure; scatter(coords(:,1),coords(:,2), 10, bound, 'filled');
+                    %title(['Randomly removing coords so window matches upper bound line 320. numbound ', num2str(numbound(c))]);
+
                     end
                 end
             end
             toc;
             disp('Determined window size.')
+
+
             
             %% Actually calculate the statistics
             comp_table = [];
@@ -555,7 +582,9 @@ for i=1:size(fnamelist,1)
             %save additional window results for each subject
             win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', thisval);
             save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
-     
+
+            % Saving the index of removed cells to monitor repeatability 
+            writecell(trimlist, fullfile(basepath,'Results',[subjectID{LUTindex} '_removedCoords_' date '.csv']));
             %%
         end
     catch ex
