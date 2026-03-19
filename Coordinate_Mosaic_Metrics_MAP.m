@@ -95,7 +95,7 @@ close all force;
 WINDOW_SIZE = [];
 upper_bound = 150; %this is the number of BOUND cells to include
 TRIM = true; % Set to true if you want to trim the outer cells until the number of cells is exactly the upper bound.
-set_seed = 0; % Set seed for the randperm fxn 1 == True 0 == False.
+set_seed = 1; % Set seed for the randperm fxn 1 == True 0 == False.
 % Setting seed to true will ensure that the same cones are removed from the
 % window when re
 
@@ -244,6 +244,7 @@ for i=1:size(fnamelist,1)
                 trimlist = cell(size(coords,1), 1);
 
                 
+
                 [V,C] = voronoin(coords,{'QJ'}); % Returns the vertices of the Voronoi edges in VX and VY so that plot(VX,VY,'-',X,Y,'.')
                 tic;
                 parfor c=1:size(coords,1)                                   
@@ -380,7 +381,7 @@ for i=1:size(fnamelist,1)
                         ignoreindx = find(bound == 1);
                         % Randomly choose which of the cells to keep from the last iteration to meet the upper bound defined above.
                         if set_seed == 1
-                            rng(1)
+                            rng(c)
                         end
                         toremove = randperm(length(ignoreindx), numbound(c)-upper_bound); 
                         ignoreindx = ignoreindx(toremove);
