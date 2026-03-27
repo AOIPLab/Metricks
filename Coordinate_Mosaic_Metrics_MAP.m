@@ -469,13 +469,13 @@ for i=1:size(fnamelist,1)
                 clip_start_end = [colborders rowborders];
                                
 
-                statistics_um{c} = determine_mosaic_stats( coords, scaleval_um, scaleval_deg, selectedunit, clip_start_end , ...
+                statistics_um{c} = determine_mosaic_stats( coords, scaleval_um, scaleval_deg, 'microns (mm density)', clip_start_end , ...
                                                         trimlist{c}, 4 );
                 
                 statistics_um{c}.Window_Size = pixelwindowsize(c)*scaleval_um;
 
 
-                statistics_deg{c} = determine_mosaic_stats( coords, scaleval_deg, scaleval_deg, selectedunit, clip_start_end , ...
+                statistics_deg{c} = determine_mosaic_stats( coords, scaleval_deg, scaleval_deg, 'degrees', clip_start_end , ...
                                                         trimlist{c}, 4 );
                 
                 statistics_deg{c}.Window_Size = pixelwindowsize(c)*scaleval_deg;
