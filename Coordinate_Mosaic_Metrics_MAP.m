@@ -116,15 +116,16 @@ path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 fnamelist = [fnamelist; fnamelisttxt];
 isadir = [isadir;isdirtxt];
 
-liststr = {'microns (mm density)','degrees','arcmin'};
-[selectedunit, oked] = listdlg('PromptString','Select output units:',...
-                              'SelectionMode','single',...
-                              'ListString',liststr);
-if oked == 0
-    error('Cancelled by user.');
-end
+% Commented out by MG on 3/2026 for the map only output 
+% liststr = {'microns (mm density)','degrees','arcmin'};
+% [selectedunit, oked] = listdlg('PromptString','Select output units:',...
+%                               'SelectionMode','single',...
+%                               'ListString',liststr);
+% if oked == 0
+%     error('Cancelled by user.');
+% end
 
-selectedunit = liststr{selectedunit};                          
+% selectedunit = liststr{selectedunit};                          
 
 [scalingfname, scalingpath] = uigetfile(fullfile(basepath,'*.csv'),'Select scaling LUT, OR cancel if you want to input the scale directly.');
 
@@ -183,17 +184,17 @@ for i=1:size(fnamelist,1)
 
                 micronsperdegree = (291*axiallength)/24;
                 
-                switch selectedunit
-                    case 'microns (mm density)'
-                        scaleval = 1 / (pixelsperdegree / micronsperdegree);
+                % switch selectedunit
+                    % case 'microns (mm density)'
+                        scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
+                        % scaleval_deg = 1/pixelsperdegree;
+                    % case 'degrees'
                         scaleval_deg = 1/pixelsperdegree;
-                    case 'degrees'
-                        scaleval = 1/pixelsperdegree;
-                        scaleval_deg = 1/pixelsperdegree;
-                    case 'arcmin'
-                        scaleval = 60/pixelsperdegree;
-                        scaleval_deg = 1/pixelsperdegree;
-                end
+                        % scaleval_deg = 1/pixelsperdegree;
+                    % case 'arcmin'
+                        %scaleval_arcmin = 60/pixelsperdegree;
+                        % scaleval_deg = 1/pixelsperdegree;
+               %end
             else
                 scaleval = scaleinput;
             end
@@ -228,8 +229,10 @@ for i=1:size(fnamelist,1)
 
             statistics = cell(size(coords,1),1);
             
+            % TODO: MG fix this loop so it works for window or user entered
+            % scaling info 
             if ~isempty(WINDOW_SIZE)
-                
+                scaleval = scaleval_um;
                 pixelwindowsize = repmat(WINDOW_SIZE/scaleval,size(coords,1),1);
                 
             else
@@ -447,6 +450,9 @@ for i=1:size(fnamelist,1)
                       'Unbound_Density', 0 ,'Unbound_NN_Distance', 0, 'Unbound_IC_Distance',0, 'Unbound_Furthest_Distance',0, 'Bound_Density_DEG',0);
             end
 
+            statistics_um = statistics;
+            statistics_deg = statistics;
+            
 
             tic;
             parfor c=1:size(coords,1)
@@ -463,14 +469,20 @@ for i=1:size(fnamelist,1)
                 clip_start_end = [colborders rowborders];
                                
 
-                statistics{c} = determine_mosaic_stats( coords, scaleval, scaleval_deg, selectedunit, clip_start_end , ...
+                statistics_um{c} = determine_mosaic_stats( coords, scaleval_um, scaleval_deg, selectedunit, clip_start_end , ...
                                                         trimlist{c}, 4 );
                 
-                statistics{c}.Window_Size = pixelwindowsize(c)*scaleval;
+                statistics_um{c}.Window_Size = pixelwindowsize(c)*scaleval_um;
 
 
-                if statistics{c}.Number_Bound_Cells ~= numbound(c)                    
-                    warning(['Warning! Mismatch between how many bound cells we expected (' num2str(numbound(c)) ') and how many we had (' num2str(statistics{c}.Number_Bound_Cells) '!'])
+                statistics_deg{c} = determine_mosaic_stats( coords, scaleval_deg, scaleval_deg, selectedunit, clip_start_end , ...
+                                                        trimlist{c}, 4 );
+                
+                statistics_deg{c}.Window_Size = pixelwindowsize(c)*scaleval_deg;
+
+
+                if statistics_um{c}.Number_Bound_Cells ~= numbound(c)                    
+                    warning(['Warning! Mismatch between how many bound cells we expected (' num2str(numbound(c)) ') and how many we had (' num2str(statistics_um{c}.Number_Bound_Cells) '!'])
                     pause;
                 end
 
@@ -482,8 +494,8 @@ for i=1:size(fnamelist,1)
 
            % Validate that we actually ran all cells by checking to make
            % sure the number of unbound cells isn't still -1.
-           for c=1:size(coords,1)
-                if statistics{c}.Number_Unbound_Cells == -1
+           for c=1:size(coords,1) 
+                if statistics_um{c}.Number_Unbound_Cells == -1
                     warning('At least one cell failed to analyze!')
                 % else
                 %     disp(num2str(statistics{c}.Number_Bound_Cells))
@@ -501,7 +513,7 @@ for i=1:size(fnamelist,1)
 %             end
 
             %Hard code selection for bound density - added by JC 2/19/22
-            metriclist = fieldnames(statistics{1});
+            metriclist = fieldnames(statistics_um{1});
             selectedmetric = 5; %5 = bound density, 7 = bound ICD      
 
             interped_map=zeros([height width]);
@@ -518,12 +530,12 @@ for i=1:size(fnamelist,1)
 
             for c=1:size(coords,1)
 
-                thisval(c) = statistics{c}.(metriclist{selectedmetric});
-                bound_area(c) = statistics{c}.('Total_Bound_Area');
-                unbound_area(c) = statistics{c}.('Total_Area');
-                bound_num_cells(c) = statistics{c}.('Number_Bound_Cells');
-                unbound_num_cells(c) = statistics{c}.('Number_Unbound_Cells');
-                density_bound_deg(c) = statistics{c}.('Bound_Density_DEG');
+                thisval(c) = statistics_um{c}.(metriclist{selectedmetric});
+                bound_area(c) = statistics_um{c}.('Total_Bound_Area');
+                unbound_area(c) = statistics_um{c}.('Total_Area');
+                bound_num_cells(c) = statistics_um{c}.('Number_Bound_Cells');
+                unbound_num_cells(c) = statistics_um{c}.('Number_Unbound_Cells');
+                density_bound_deg(c) = statistics_um{c}.('Bound_Density_DEG');
 
             end
              
