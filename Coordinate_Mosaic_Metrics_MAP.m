@@ -486,7 +486,7 @@ for i=1:size(fnamelist,1)
                     pause;
                 end
 
-                warning off;
+                %warning off;
                 [ success ] = mkdir(basepath,'Results');
                 warning on;
             end
@@ -513,12 +513,11 @@ for i=1:size(fnamelist,1)
 %             end
 
             %Hard code selection for bound density - added by JC 2/19/22
-            metriclist = fieldnames(statistics_um{1});
-            selectedmetric = 5; %5 = bound density, 7 = bound ICD      
+            %metriclist = fieldnames(statistics_um{1});
+            %selectedmetric = 5; %5 = bound density, 7 = bound ICD
 
             interped_map=zeros([height width]);
             sum_map=zeros([height width]);
-            thisval = zeros([size(coords,1) 1]);
             [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
 
             % initialize additional items to be saved
@@ -526,72 +525,133 @@ for i=1:size(fnamelist,1)
             unbound_area = zeros([size(coords,1) 1]);
             bound_num_cells = zeros([size(coords,1) 1]);
             unbound_num_cells = zeros([size(coords,1) 1]);
+
             density_bound_deg = zeros([size(coords,1) 1]);
+            density_bound_mm = zeros([size(coords,1) 1]);
+            
+            ICD_bound_deg = zeros([size(coords,1) 1]);
+            ICD_bound_mm = zeros([size(coords,1) 1]);
+
+            NND_bound_deg = zeros([size(coords,1) 1]);
+            NND_bound_mm = zeros([size(coords,1) 1]);
+
+            VCAR = zeros([size(coords,1) 1]);
+            NN_RI = zeros([size(coords,1) 1]);
+            ICD_RI = zeros([size(coords,1) 1]);
 
             for c=1:size(coords,1)
 
-                thisval(c) = statistics_um{c}.(metriclist{selectedmetric});
                 bound_area(c) = statistics_um{c}.('Total_Bound_Area');
                 unbound_area(c) = statistics_um{c}.('Total_Area');
                 bound_num_cells(c) = statistics_um{c}.('Number_Bound_Cells');
                 unbound_num_cells(c) = statistics_um{c}.('Number_Unbound_Cells');
-                density_bound_deg(c) = statistics_um{c}.('Bound_Density_DEG');
+
+                density_bound_deg(c) = statistics_deg{c}.('Bound_Density');
+                density_bound_mm(c) = statistics_um{c}.('Bound_Density');
+
+                ICD_bound_deg(c) = statistics_deg{c}.('Bound_IC_Distance');
+                ICD_bound_mm(c) = statistics_um{c}.('Bound_IC_Distance');
+
+                NND_bound_deg(c) = statistics_deg{c}.('Bound_NN_Distance');
+                NND_bound_mm(c) = statistics_um{c}.('Bound_NN_Distance');
+
+                VCAR(c) = statistics_um{c}.('Bound_Voronoi_Area_RI');
+                NN_RI(c) = statistics_um{c}.('Bound_NN_RI');
+                ICD_RI(c) = statistics_um{c}.('Bound_IC_RI');
 
             end
              
-            scattah = scatteredInterpolant(coords(:,1), coords(:,2), thisval);
-            interped_map = scattah(Xq,Yq);
-			smoothed_interped_map = imgaussfilt(interped_map,20);
-			
-			interped_map(isnan(interped_map)) =0;
-			smoothed_interped_map(isnan(smoothed_interped_map)) =0;
-            
-            vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
-            
-            clims = [50000 225000]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
-            
-            dispfig=figure(1); 
-            imagesc(interped_map,clims); % added to use limits of color scale, by Joe 2/19/22
-            axis image;
-            colormap(vmap); 
-            colorbar; 
-            [minval, minind] = min(interped_map(:));
-            [maxval, maxind] = max(interped_map(:));
-            
-            [minrow,mincol]=ind2sub(size(interped_map),minind);
-            [maxrow,maxcol]=ind2sub(size(interped_map),maxind);
-            
-            max_x_vals = maxcol;
-            max_y_vals = maxrow;
-            
-            subjectID = lutData{1};% extract subject ID; added by Katie Litts in 2019
-            disp([subjectID{LUTindex} ' Maximum value: ' num2str(round(maxval)) '(' num2str(maxcol) ',' num2str(maxrow) ')' ]) % display added by Katie Litts in 2019
-                       
-            title(['Minimum value: ' num2str(minval) '(' num2str(mincol) ',' num2str(minrow) ') Maximum value: ' num2str(maxval) '(' num2str(maxcol) ',' num2str(maxrow) ')'])
-            
-            result_fname = [fnamelist{i}(1:end-4) '_bound_map_' date '_' num2str(WINDOW_SIZE) metriclist{selectedmetric}];
-            
-            saveas(gcf,fullfile(basepath,'Results', [result_fname '_fig.png']));
-            %updated to scale to the max of clims 10/11/23     
-            scaled_map = interped_map-min(clims);
-            scaled_map(scaled_map <0) =0; %in case there are min values below this
-            scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
-            scaled_map(scaled_map  >255) = 255; %in case there are values above this
-            imwrite(scaled_map, vmap, fullfile(basepath,'Results',[result_fname '_raw5.tif'])); %added by Joe Carroll 
-            
-            %Adding an output image with the marked location of peak density, added by Joe Carroll 2/19/22, updated to scale to the
-            %max of clims 10/11/23
-            scaled_map_mark = uint8(255*interped_map./max(clims));
-            MARK = insertShape(scaled_map_mark,'circle',[maxcol maxrow 2], 'LineWidth' ,3, 'Color' , 'red');
-            imwrite(MARK, vmap, fullfile(basepath,'Results',[result_fname '_marked.tif']));
+            density_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), density_bound_deg);
+            density_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), density_bound_mm);
 
-            %save matrix of density values, added by Jenna Cava
-            filename = fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_' date '.csv']);
-            writematrix(interped_map, filename);
+            ICD_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_deg');
+            ICD_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_mm');
+
+            NND_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_deg');
+            NND_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_mm');
+
+            VCAR_scat = scatteredInterpolant(coords(:,1), coords(:,2), VCAR');
+            NN_RI_scat = scatteredInterpolant(coords(:,1), coords(:,2), NN_RI');
+            ICD_RI_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_RI');
+
+            interped_map_density_deg = density_deg_scat(Xq,Yq);
+			interped_map_density_deg(isnan(interped_map_density_deg)) =0;
+            interped_map_density_mm = density_mm_scat(Xq,Yq);
+			interped_map_density_mm(isnan(interped_map_density_mm)) =0;
+
+            interped_map_ICD_deg = ICD_deg_scat(Xq,Yq);
+			interped_map_ICD_deg(isnan(interped_map_ICD_deg)) =0;
+            interped_map_ICD_mm = ICD_mm_scat(Xq,Yq);
+			interped_map_ICD_mm(isnan(interped_map_ICD_mm)) =0;
+
+            interped_map_NND_deg = NND_deg_scat(Xq,Yq);
+			interped_map_NND_deg(isnan(interped_map_NND_deg)) =0;
+            interped_map_NND_mm = NND_mm_scat(Xq,Yq);
+			interped_map_NND_mm(isnan(interped_map_NND_mm)) =0;
+            
+            interped_VCAR = VCAR_scat(Xq,Yq);
+            interped_VCAR(isnan(interped_VCAR)) =0;
+            interped_NN_RI = NN_RI_scat(Xq,Yq);
+            interped_NN_RI(isnan(interped_NN_RI)) =0;
+            interped_ICD_RI = ICD_RI_scat(Xq,Yq);
+            interped_ICD_RI(isnan(interped_ICD_RI)) =0;
+
+
+            % smoothed_interped_map = imgaussfilt(interped_map,20);
+			% smoothed_interped_map(isnan(smoothed_interped_map)) =0;
+            
+            % vmap=viridis; %calls viridis colormap function, added by Joe 2/19/22
+            % 
+            % clims = [50000 225000]; % added to set limits of color scale, so all images use the same scale by Joe 2/19/22
+            % 
+            % dispfig=figure(1); 
+            % imagesc(interped_map,clims); % added to use limits of color scale, by Joe 2/19/22
+            % axis image;
+            % colormap(vmap); 
+            % colorbar; 
+            % [minval, minind] = min(interped_map(:));
+            % [maxval, maxind] = max(interped_map(:));
+            % 
+            % [minrow,mincol]=ind2sub(size(interped_map),minind);
+            % [maxrow,maxcol]=ind2sub(size(interped_map),maxind);
+            % 
+            % max_x_vals = maxcol;
+            % max_y_vals = maxrow;
+            % 
+            % subjectID = lutData{1};% extract subject ID; added by Katie Litts in 2019
+            % disp([subjectID{LUTindex} ' Maximum value: ' num2str(round(maxval)) '(' num2str(maxcol) ',' num2str(maxrow) ')' ]) % display added by Katie Litts in 2019
+            % 
+            % title(['Minimum value: ' num2str(minval) '(' num2str(mincol) ',' num2str(minrow) ') Maximum value: ' num2str(maxval) '(' num2str(maxcol) ',' num2str(maxrow) ')'])
+            % 
+            % result_fname = [fnamelist{i}(1:end-4) '_bound_map_' date '_' num2str(WINDOW_SIZE) metriclist{selectedmetric}];
+            % 
+            % saveas(gcf,fullfile(basepath,'Results', [result_fname '_fig.png']));
+            % 
+            % %updated to scale to the max of clims 10/11/23     
+            % scaled_map = interped_map-min(clims);
+            % scaled_map(scaled_map <0) =0; %in case there are min values below this
+            % scaled_map = uint8(255*scaled_map./(max(clims)-min(clims)));
+            % scaled_map(scaled_map  >255) = 255; %in case there are values above this
+            % imwrite(scaled_map, vmap, fullfile(basepath,'Results',[result_fname '_raw5.tif'])); %added by Joe Carroll 
+            % 
+            % %Adding an output image with the marked location of peak density, added by Joe Carroll 2/19/22, updated to scale to the
+            % %max of clims 10/11/23
+            % scaled_map_mark = uint8(255*interped_map./max(clims));
+            % MARK = insertShape(scaled_map_mark,'circle',[maxcol maxrow 2], 'LineWidth' ,3, 'Color' , 'red');
+            % imwrite(MARK, vmap, fullfile(basepath,'Results',[result_fname '_marked.tif']));
+
+            % %save matrix of density values, added by Jenna Cava
+            % filename = fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_' date '.csv']);
+            % writematrix(interped_map, filename);
 
             %save matrix as matfile
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_MATFILE_' date '.mat']), "interped_map");
-    
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_mm_matrix_MATFILE_' date '.mat']), "interped_map_density_mm");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_deg_matrix_MATFILE_' date '.mat']), "interped_map_density_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_mm_matrix_MATFILE_' date '.mat']), "interped_map_ICD_mm");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_deg_matrix_MATFILE_' date '.mat']), "interped_map_ICD_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_mm_matrix_MATFILE_' date '.mat']), "interped_map_NND_mm");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_deg_matrix_MATFILE_' date '.mat']), "interped_map_NND_deg");
+
             %save additional window results for each subject
             win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', thisval);
             save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
