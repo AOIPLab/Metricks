@@ -102,7 +102,6 @@ set_seed = 1; % Set seed for the randperm fxn 1 == True 0 == False.
 %% Crop the coordinates/image to this size in [scale], and calculate the area from it.
 % If left empty, it uses the size of the image.
 
-
 basePath = which('Coordinate_Mosaic_Metrics_MAP.m');
 
 [basePath ] = fileparts(basePath);
@@ -181,21 +180,31 @@ for i=1:size(fnamelist,1)
                 
                 axiallength = lutData{2}(LUTindex);
                 pixelsperdegree = lutData{3}(LUTindex);
-
                 micronsperdegree = (291*axiallength)/24;
+
+                % microns or cones/mm^2 for density
+                scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
+
+                % degrees
+                scaleval_deg = 1/pixelsperdegree;
+
+                % arcmin
+                scaleval_arcmin = 60/pixelsperdegree;
                 
                 % switch selectedunit
                     % case 'microns (mm density)'
-                        scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
+                        % scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
                         % scaleval_deg = 1/pixelsperdegree;
                     % case 'degrees'
-                        scaleval_deg = 1/pixelsperdegree;
+                        % scaleval_deg = 1/pixelsperdegree;
                         % scaleval_deg = 1/pixelsperdegree;
                     % case 'arcmin'
-                        %scaleval_arcmin = 60/pixelsperdegree;
+                        % scaleval_arcmin = 60/pixelsperdegree;
                         % scaleval_deg = 1/pixelsperdegree;
                %end
             else
+                % TODO: MG deal with this if we still want to have the
+                % possibility for user input scale
                 scaleval = scaleinput;
             end
 
@@ -447,11 +456,12 @@ for i=1:size(fnamelist,1)
                       'Bound_Density',0, 'Bound_NN_Distance',0,'Bound_IC_Distance',0,'Bound_Furthest_Distance',0,...
                       'Bound_Mean_Voronoi_Area', 0,'Bound_Percent_Six_Sided_Voronoi',0,'Unbound_DRP_Distance', 0,...
                       'Bound_Voronoi_Area_RI',0,'Bound_Voronoi_Sides_RI',0, 'Bound_NN_RI', 0, 'Bound_IC_RI', 0,...
-                      'Unbound_Density', 0 ,'Unbound_NN_Distance', 0, 'Unbound_IC_Distance',0, 'Unbound_Furthest_Distance',0, 'Bound_Density_DEG',0);
+                      'Unbound_Density', 0 ,'Unbound_NN_Distance', 0, 'Unbound_IC_Distance',0, 'Unbound_Furthest_Distance',0);
             end
 
             statistics_um = statistics;
             statistics_deg = statistics;
+            statistics_arcmin = statistics;
             
 
             tic;
@@ -469,16 +479,12 @@ for i=1:size(fnamelist,1)
                 clip_start_end = [colborders rowborders];
                                
 
-                statistics_um{c} = determine_mosaic_stats( coords, scaleval_um, scaleval_deg, 'microns (mm density)', clip_start_end , ...
+                [statistics_um{c}, statistics_deg{c}, statistics_arcmin{c}] = determine_mosaic_stats(coords, pixelsperdegree, micronsperdegree, clip_start_end , ...
                                                         trimlist{c}, 4 );
                 
                 statistics_um{c}.Window_Size = pixelwindowsize(c)*scaleval_um;
-
-
-                statistics_deg{c} = determine_mosaic_stats( coords, scaleval_deg, scaleval_deg, 'degrees', clip_start_end , ...
-                                                        trimlist{c}, 4 );
-                
                 statistics_deg{c}.Window_Size = pixelwindowsize(c)*scaleval_deg;
+                statistics_arcmin{c}.Window_Size = pixelwindowsize(c)*scaleval_arcmin;
 
 
                 if statistics_um{c}.Number_Bound_Cells ~= numbound(c)                    
@@ -486,7 +492,7 @@ for i=1:size(fnamelist,1)
                     pause;
                 end
 
-                %warning off;
+                warning off;
                 [ success ] = mkdir(basepath,'Results');
                 warning on;
             end
@@ -516,8 +522,8 @@ for i=1:size(fnamelist,1)
             %metriclist = fieldnames(statistics_um{1});
             %selectedmetric = 5; %5 = bound density, 7 = bound ICD
 
-            interped_map=zeros([height width]);
-            sum_map=zeros([height width]);
+            % interped_map=zeros([height width]);
+            % sum_map=zeros([height width]);
             [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
 
             % initialize additional items to be saved
@@ -528,12 +534,15 @@ for i=1:size(fnamelist,1)
 
             density_bound_deg = zeros([size(coords,1) 1]);
             density_bound_mm = zeros([size(coords,1) 1]);
+            density_bound_arcmin = zeros([size(coords,1) 1]);
             
             ICD_bound_deg = zeros([size(coords,1) 1]);
             ICD_bound_mm = zeros([size(coords,1) 1]);
+            ICD_bound_arcmin = zeros([size(coords,1) 1]);
 
             NND_bound_deg = zeros([size(coords,1) 1]);
             NND_bound_mm = zeros([size(coords,1) 1]);
+            NND_bound_arcmin = zeros([size(coords,1) 1]);
 
             VCAR = zeros([size(coords,1) 1]);
             NN_RI = zeros([size(coords,1) 1]);
@@ -548,12 +557,15 @@ for i=1:size(fnamelist,1)
 
                 density_bound_deg(c) = statistics_deg{c}.('Bound_Density');
                 density_bound_mm(c) = statistics_um{c}.('Bound_Density');
+                density_bound_arcmin(c) = statistics_arcmin{c}.('Bound_Density');
 
                 ICD_bound_deg(c) = statistics_deg{c}.('Bound_IC_Distance');
                 ICD_bound_mm(c) = statistics_um{c}.('Bound_IC_Distance');
+                ICD_bound_arcmin(c) = statistics_arcmin{c}.('Bound_IC_Distance');
 
                 NND_bound_deg(c) = statistics_deg{c}.('Bound_NN_Distance');
                 NND_bound_mm(c) = statistics_um{c}.('Bound_NN_Distance');
+                NND_bound_arcmin(c) = statistics_arcmin{c}.('Bound_NN_Distance');
 
                 VCAR(c) = statistics_um{c}.('Bound_Voronoi_Area_RI');
                 NN_RI(c) = statistics_um{c}.('Bound_NN_RI');
@@ -563,31 +575,40 @@ for i=1:size(fnamelist,1)
              
             density_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), density_bound_deg);
             density_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), density_bound_mm);
+            density_arcmin_scat = scatteredInterpolant(coords(:,1), coords(:,2), density_bound_arcmin);
 
-            ICD_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_deg');
-            ICD_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_mm');
+            ICD_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_deg);
+            ICD_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_mm);
+            ICD_arcmin_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_bound_arcmin);
 
-            NND_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_deg');
-            NND_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_mm');
+            NND_deg_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_deg);
+            NND_mm_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_mm);
+            NND_arcmin_scat = scatteredInterpolant(coords(:,1), coords(:,2), NND_bound_arcmin);
 
-            VCAR_scat = scatteredInterpolant(coords(:,1), coords(:,2), VCAR');
-            NN_RI_scat = scatteredInterpolant(coords(:,1), coords(:,2), NN_RI');
-            ICD_RI_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_RI');
+            VCAR_scat = scatteredInterpolant(coords(:,1), coords(:,2), VCAR);
+            NN_RI_scat = scatteredInterpolant(coords(:,1), coords(:,2), NN_RI);
+            ICD_RI_scat = scatteredInterpolant(coords(:,1), coords(:,2), ICD_RI);
 
             interped_map_density_deg = density_deg_scat(Xq,Yq);
 			interped_map_density_deg(isnan(interped_map_density_deg)) =0;
             interped_map_density_mm = density_mm_scat(Xq,Yq);
 			interped_map_density_mm(isnan(interped_map_density_mm)) =0;
+            interped_map_density_arcmin = density_arcmin_scat(Xq,Yq);
+			interped_map_density_arcmin(isnan(interped_map_density_arcmin)) =0;
 
             interped_map_ICD_deg = ICD_deg_scat(Xq,Yq);
 			interped_map_ICD_deg(isnan(interped_map_ICD_deg)) =0;
             interped_map_ICD_mm = ICD_mm_scat(Xq,Yq);
 			interped_map_ICD_mm(isnan(interped_map_ICD_mm)) =0;
+            interped_map_ICD_arcmin = ICD_arcmin_scat(Xq,Yq);
+			interped_map_ICD_arcmin(isnan(interped_map_ICD_arcmin)) =0;
 
             interped_map_NND_deg = NND_deg_scat(Xq,Yq);
 			interped_map_NND_deg(isnan(interped_map_NND_deg)) =0;
             interped_map_NND_mm = NND_mm_scat(Xq,Yq);
 			interped_map_NND_mm(isnan(interped_map_NND_mm)) =0;
+            interped_map_NND_arcmin = NND_arcmin_scat(Xq,Yq);
+			interped_map_NND_arcmin(isnan(interped_map_NND_arcmin)) =0;
             
             interped_VCAR = VCAR_scat(Xq,Yq);
             interped_VCAR(isnan(interped_VCAR)) =0;
@@ -618,7 +639,7 @@ for i=1:size(fnamelist,1)
             % max_x_vals = maxcol;
             % max_y_vals = maxrow;
             % 
-            % subjectID = lutData{1};% extract subject ID; added by Katie Litts in 2019
+            
             % disp([subjectID{LUTindex} ' Maximum value: ' num2str(round(maxval)) '(' num2str(maxcol) ',' num2str(maxrow) ')' ]) % display added by Katie Litts in 2019
             % 
             % title(['Minimum value: ' num2str(minval) '(' num2str(mincol) ',' num2str(minrow) ') Maximum value: ' num2str(maxval) '(' num2str(maxcol) ',' num2str(maxrow) ')'])
@@ -644,17 +665,36 @@ for i=1:size(fnamelist,1)
             % filename = fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_' date '.csv']);
             % writematrix(interped_map, filename);
 
+            subjectID = lutData{1};% extract subject ID; added by Katie Litts in 2019
+
             %save matrix as matfile
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_mm_matrix_MATFILE_' date '.mat']), "interped_map_density_mm");
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_deg_matrix_MATFILE_' date '.mat']), "interped_map_density_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_density_arcmin");
+
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_mm_matrix_MATFILE_' date '.mat']), "interped_map_ICD_mm");
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_deg_matrix_MATFILE_' date '.mat']), "interped_map_ICD_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_ICD_arcmin");
+
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_mm_matrix_MATFILE_' date '.mat']), "interped_map_NND_mm");
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_deg_matrix_MATFILE_' date '.mat']), "interped_map_NND_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_NND_arcmin");
+
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_VCAR_matrix_MATFILE_' date '.mat']), "interped_VCAR");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NN_RI_matrix_MATFILE_' date '.mat']), "interped_NN_RI");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_RI_matrix_MATFILE_' date '.mat']), "interped_ICD_RI");
+
 
             %save additional window results for each subject
-            win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', thisval);
+            win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', density_bound_mm);
             save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
+
+            % saving the statistics structs to prevent needing to re-run
+            % data 
+
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_stats_um_' date '.mat']), "statistics_um");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_stats_deg_' date '.mat']), "statistics_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_stats_arcmin_' date '.mat']), "statistics_arcmin");
 
             % Saving the index of removed cells to monitor repeatability 
             writecell(trimlist, fullfile(basepath,'Results',[subjectID{LUTindex} '_removedCoords_' date '.csv']));

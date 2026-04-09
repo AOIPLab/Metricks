@@ -1,11 +1,22 @@
-function [ mosaic_stats ] = determine_mosaic_stats( coords, scale, scaledeg, unit, bounds , ignore_idx, reliability )
+function [ mosaic_stats_um, mosaic_stats_deg, mosaic_stats_arcmin  ] = determine_mosaic_stats( coords, pixelsperdegree, micronsperdegree, bounds, ignore_idx, reliability )
 % Robert Cooper 09-24-14
 % This function takes in a list of coordinates in a m-2 matrix, and
 % calculates the mean nearest neighbor, cell area created by the
 % coordinates, and calculates the density of the coordinates
 
-%% Coords are in X,Y!
+%% Computing different scaling variables - added by MG 4/3/2026
 
+% microns or cones/mm^2 for density
+scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
+
+% degrees
+scaleval_deg = 1/pixelsperdegree;
+
+% arcmin
+scaleval_arcmin = 60/pixelsperdegree;
+
+
+%% Coords are in X,Y!
 
 clipped_row_col = [bounds(2)-bounds(1) bounds(4)-bounds(3)];
 
@@ -20,10 +31,14 @@ max_ident=eye(length(dist_between_pts)).*max(dist_between_pts(:)); % Make diagon
 
 [minval minind]=min(dist_between_pts+max_ident); % Find the minimum distance from one set of obs to another
 
-mean_nn_dist=mean(minval.*scale); % Distance in units
+mean_nn_dist_um = mean(minval.*scaleval_um); % Distance in units
+mean_nn_dist_deg = mean(minval.*scaleval_deg); % Distance in units
+mean_nn_dist_arcmin = mean(minval.*scaleval_arcmin); % Distance in units
 
 % std(minval.*um_per_pix)
-regularity_nn_index = mean_nn_dist/std(minval.*scale);
+regularity_nn_index_um = mean_nn_dist_um/std(minval.*scaleval_um); % Units cancel out but we'll still save everything separately 
+regularity_nn_index_deg = mean_nn_dist_deg/std(minval.*scaleval_deg);
+regularity_nn_index_arcmin = mean_nn_dist_arcmin/std(minval.*scaleval_arcmin);
 
 % wb = waitbar(.2,'Determining Voronoi');
 
@@ -82,21 +97,42 @@ end
 % voronoi(coords(:,1),coords(:,2));
 if sum(bound) ~= 0
     coords_bound= coords(bound,:); % Clip out the unbounded cells
-    cellarea_deg = cellarea((cellarea~=0)).*(scaledeg.^2);
-    cellarea= cellarea((cellarea~=0)).*(scale.^2); % Clip out unbounded cells, convert to square microns
+
+    cellarea_deg = cellarea((cellarea~=0)).*(scaleval_deg.^2);
+    cellarea_arcmin = cellarea((cellarea~=0)).*(scaleval_arcmin.^2);
+    cellarea_um= cellarea((cellarea~=0)).*(scaleval_um.^2); % Clip out unbounded cells, convert to square microns
+    
     numedges = numedges(numedges~=0);
     
-    mean_cellarea=mean(cellarea);
-    regularity_voro_index = mean_cellarea/std(cellarea);
+    mean_cellarea_deg=mean(cellarea_deg);
+    mean_cellarea_arcmin=mean(cellarea_arcmin);
+    mean_cellarea_um=mean(cellarea_um);
+
+
+    regularity_voro_index_deg = mean_cellarea_deg/std(cellarea_deg);
+    regularity_voro_index_arcmin = mean_cellarea_arcmin/std(cellarea_arcmin);
+    regularity_voro_index_um = mean_cellarea_um/std(cellarea_um);
+
+
+
     regularity_voro_sides = mean(numedges)/std(numedges);
     
 %     disp([ 'Mean: ' num2str(mean(numedges))  ' Std deviation: ' num2str(std(numedges)) ] );
     percent_six_sided = 100*sixsided/size(coords_bound,1);
 else
-    cellarea=0;
+    cellarea_um = 0;
+    cellarea_arcmin = 0;
     cellarea_deg = 0;
-    mean_cellarea=0;
-    regularity_voro_index=0;
+
+    mean_cellarea_um = 0;
+    mean_cellarea_arcmin = 0;
+    mean_cellarea_deg = 0;
+
+    regularity_voro_index_deg=0;
+    regularity_voro_index_arcmin=0;
+    regularity_voro_index_um=0;
+
+
     regularity_voro_sides=0;
     percent_six_sided=0;
     coords_bound = [];
@@ -108,29 +144,33 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 numcells=length(clipped_coords); % Total number of cells
-total_cell_area=sum(cellarea); % Total cell area in units
-total_cell_area_deg = sum(cellarea_deg);
+total_cell_area_um = sum(cellarea_um); % Total cell area in um
+total_cell_area_arcmin = sum(cellarea_arcmin);
+total_cell_area_deg = sum(cellarea_deg); 
 
-if strcmp(unit,'microns (mm density)')
-    total_coord_area=((clipped_row_col(1)*clipped_row_col(2))*((scale^2)/(1000^2))); 
-else
-    total_coord_area=((clipped_row_col(1)*clipped_row_col(2))*((scale^2)));    
-end
+% microns (mm density)
+    total_coord_area_um=(((clipped_row_col(1)*clipped_row_col(2))*((scaleval_um^2)/(1000^2))))*1000^2; 
+% degrees
+    total_coord_area_deg=((clipped_row_col(1)*clipped_row_col(2))*((scaleval_deg^2)));    
+% arcmin 
+    total_coord_area_arcmin=((clipped_row_col(1)*clipped_row_col(2))*((scaleval_arcmin^2))); 
+
 
 pixel_density = numcells/(clipped_row_col(1)*clipped_row_col(2));
-density_dc=numcells/total_coord_area; % cells/mm^2
+
+density_dc_um=numcells/total_coord_area_um; % cells/mm^2
+density_dc_deg=numcells/total_coord_area_deg; % cells/mm^2
+density_dc_arcmin=numcells/total_coord_area_arcmin; % cells/mm^2
 
 if ~isempty(coords_bound)
-    if strcmp(unit,'microns (mm density)')
-        density_bound = (1000^2)*size(coords_bound,1)./total_cell_area;
+    
+        density_bound_um = (1000^2)*size(coords_bound,1)./total_cell_area_um;
         density_bound_deg = size(coords_bound,1)./total_cell_area_deg;
-    else
-        density_bound = size(coords_bound,1)./total_cell_area;
-        density_bound_deg = size(coords_bound,1)./total_cell_area;
-    end
+        density_bound_arcmin = size(coords_bound,1)./total_cell_area_arcmin;
 else
-    density_bound = 0;
+    density_bound_um = 0;
     density_bound_deg = 0;
+    density_bound_arcmin = 0;
 end
 
 
@@ -139,12 +179,27 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-inter_cell_dist = zeros(size(clipped_coords,1),1);
-max_cell_dist = zeros(size(clipped_coords,1),1);
+inter_cell_dist_um = zeros(size(clipped_coords,1),1);
+inter_cell_dist_deg = zeros(size(clipped_coords,1),1);
+inter_cell_dist_arcmin = zeros(size(clipped_coords,1),1);
 
-correct_inter_cell_dist = zeros(sum(bound),1);
-correct_max_cell_dist = zeros(sum(bound),1);
-correct_nn_cell_dist = zeros(sum(bound),1);
+max_cell_dist_um = zeros(size(clipped_coords,1),1);
+max_cell_dist_deg = zeros(size(clipped_coords,1),1);
+max_cell_dist_arcmin = zeros(size(clipped_coords,1),1);
+
+correct_inter_cell_dist_um = zeros(sum(bound),1);
+correct_inter_cell_dist_deg = zeros(sum(bound),1);
+correct_inter_cell_dist_arcmin = zeros(sum(bound),1);
+
+correct_max_cell_dist_um = zeros(sum(bound),1);
+correct_max_cell_dist_deg = zeros(sum(bound),1);
+correct_max_cell_dist_arcmin = zeros(sum(bound),1);
+
+correct_nn_cell_dist_um = zeros(sum(bound),1);
+correct_nn_cell_dist_deg = zeros(sum(bound),1);
+correct_nn_cell_dist_arcmin = zeros(sum(bound),1);
+
+
 if size(coords,1) > 2
 
     dt = DelaunayTri(coords);    
@@ -172,9 +227,18 @@ if size(coords,1) > 2
 
         cell_dist = squareform(pdist([coords(coord_row,1) coords(coord_row,2)]));
             
-        correct_inter_cell_dist(k) = scale*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
-        correct_max_cell_dist(k)   = scale*max(cell_dist(1,:));
-        correct_nn_cell_dist(k)    = scale*min(cell_dist(1,2:end));        
+        correct_inter_cell_dist_um(k) = scaleval_um*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+        correct_inter_cell_dist_deg(k) = scaleval_deg*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+        correct_inter_cell_dist_arcmin(k) = scaleval_arcmin*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+
+        correct_max_cell_dist_um(k)   = scaleval_um*max(cell_dist(1,:));
+        correct_max_cell_dist_deg(k)   = scaleval_deg*max(cell_dist(1,:));
+        correct_max_cell_dist_arcmin(k)   = scaleval_arcmin*max(cell_dist(1,:));
+
+        correct_nn_cell_dist_um(k)    = scaleval_um*min(cell_dist(1,2:end));
+        correct_nn_cell_dist_deg(k)    = scaleval_deg*min(cell_dist(1,2:end));
+        correct_nn_cell_dist_arcmin(k)    = scaleval_arcmin*min(cell_dist(1,2:end));
+
     end
 
     % Repeat the above, but with all cells in the unbound region..
@@ -195,29 +259,68 @@ if size(coords,1) > 2
 
         cell_dist = squareform(pdist([coords(coord_row,1) coords(coord_row,2)]));
 
-        inter_cell_dist(k) = scale*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
-        max_cell_dist(k)   = scale*max(cell_dist(1,:));
+        inter_cell_dist_um(k) = scaleval_um*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+        inter_cell_dist_deg(k) = scaleval_deg*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+        inter_cell_dist_arcmin(k) = scaleval_arcmin*(sum(cell_dist(1,:)) / (length(cell_dist(1,:))-1));
+
+        max_cell_dist_um(k)   = scaleval_um*max(cell_dist(1,:));
+        max_cell_dist_deg(k)   = scaleval_deg*max(cell_dist(1,:));
+        max_cell_dist_arcmin(k)   = scaleval_arcmin*max(cell_dist(1,:));
     end
 
+    mean_inter_cell_dist_um = mean(inter_cell_dist_um);
+    mean_inter_cell_dist_deg = mean(inter_cell_dist_deg);
+    mean_inter_cell_dist_arcmin = mean(inter_cell_dist_arcmin);
 
-    mean_inter_cell_dist = mean(inter_cell_dist);    
-    mean_max_cell_dist   = mean( max_cell_dist );
+    mean_max_cell_dist_um   = mean( max_cell_dist_um);
+    mean_max_cell_dist_deg   = mean( max_cell_dist_deg);
+    mean_max_cell_dist_arcmin   = mean( max_cell_dist_arcmin);
+
 else
-    mean_inter_cell_dist = scale*pdist(coords);
-    mean_max_cell_dist = mean_inter_cell_dist;
+    mean_inter_cell_dist_um = scaleval_um*pdist(coords);
+    mean_inter_cell_dist_deg = scaleval_deg*pdist(coords);
+    mean_inter_cell_dist_arcmin = scaleval_arcmin*pdist(coords);
+
+    mean_max_cell_dist_um = mean_inter_cell_dist_um;
+    mean_max_cell_dist_deg = mean_inter_cell_dist_deg;
+    mean_max_cell_dist_arcmin = mean_inter_cell_dist_arcmin;
+
 end
     
 if ~isempty(coords_bound)
-    mean_correct_nn_dist = mean( correct_nn_cell_dist );
-    mean_correct_inter_cell_dist = mean(correct_inter_cell_dist);
-    regularity_ic_index = mean(correct_inter_cell_dist)./std(correct_inter_cell_dist);
-    mean_correct_max_cell_dist   = mean( correct_max_cell_dist );    
+    mean_correct_nn_dist_um = mean( correct_nn_cell_dist_um );
+    mean_correct_nn_dist_deg = mean( correct_nn_cell_dist_deg );
+    mean_correct_nn_dist_arcmin = mean( correct_nn_cell_dist_arcmin );
+
+    mean_correct_inter_cell_dist_um = mean(correct_inter_cell_dist_um);
+    mean_correct_inter_cell_dist_deg = mean(correct_inter_cell_dist_deg);
+    mean_correct_inter_cell_dist_arcmin = mean(correct_inter_cell_dist_arcmin);
+
+    regularity_ic_index_um = mean(correct_inter_cell_dist_um)./std(correct_inter_cell_dist_um);
+    regularity_ic_index_deg = mean(correct_inter_cell_dist_deg)./std(correct_inter_cell_dist_deg);
+    regularity_ic_index_arcmin = mean(correct_inter_cell_dist_arcmin)./std(correct_inter_cell_dist_arcmin);
+
+
+    mean_correct_max_cell_dist_um   = mean( correct_max_cell_dist_um );
+    mean_correct_max_cell_dist_deg   = mean( correct_max_cell_dist_deg );
+    mean_correct_max_cell_dist_arcmin   = mean( correct_max_cell_dist_arcmin );
     
 else
-    regularity_ic_index = 0;
-    mean_correct_nn_dist=0;
-    mean_correct_inter_cell_dist=0;
-    mean_correct_max_cell_dist=0;
+    regularity_ic_index_um = 0;
+    regularity_ic_index_deg = 0;
+    regularity_ic_index_arcmin = 0;
+
+    mean_correct_nn_dist_um = 0;
+    mean_correct_nn_dist_deg = 0;
+    mean_correct_nn_dist_arcmin = 0;
+
+    mean_correct_inter_cell_dist_um = 0;
+    mean_correct_inter_cell_dist_deg = 0;
+    mean_correct_inter_cell_dist_arcmin = 0;
+
+    mean_correct_max_cell_dist_um = 0;
+    mean_correct_max_cell_dist_deg = 0;
+    mean_correct_max_cell_dist_arcmin = 0;
 end
 
 
@@ -232,16 +335,29 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Output List Formatting %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Make the returned struct
-if strcmp(unit,'microns (mm density)')
-    total_coord_area=total_coord_area*1000^2;      
-end
+% Make the returned structs
 
-mosaic_stats = struct('Number_Unbound_Cells', numcells,'Number_Bound_Cells', sum(bound), 'Total_Area', total_coord_area, 'Total_Bound_Area',total_cell_area,...                      
-                      'Bound_Density',density_bound, 'Bound_NN_Distance',mean_correct_nn_dist,'Bound_IC_Distance',mean_correct_inter_cell_dist,'Bound_Furthest_Distance',mean_correct_max_cell_dist,...
-                      'Bound_Mean_Voronoi_Area', mean_cellarea,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', 0,...
-                      'Bound_Voronoi_Area_RI',regularity_voro_index,'Bound_Voronoi_Sides_RI',regularity_voro_sides, 'Bound_NN_RI', regularity_nn_index, 'Bound_IC_RI', regularity_ic_index,...
-                      'Unbound_Density', density_dc ,'Unbound_NN_Distance', mean_nn_dist, 'Unbound_IC_Distance',mean_inter_cell_dist, 'Unbound_Furthest_Distance',mean_max_cell_dist, 'Bound_Density_DEG',density_bound_deg);
+
+mosaic_stats_um = struct('Number_Unbound_Cells', numcells,'Number_Bound_Cells', sum(bound), 'Total_Area', total_coord_area_um, 'Total_Bound_Area',total_cell_area_um,...                      
+                      'Bound_Density',density_bound_um, 'Bound_NN_Distance',mean_correct_nn_dist_um,'Bound_IC_Distance',mean_correct_inter_cell_dist_um,'Bound_Furthest_Distance',mean_correct_max_cell_dist_um,...
+                      'Bound_Mean_Voronoi_Area', mean_cellarea_um,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', 0,...
+                      'Bound_Voronoi_Area_RI',regularity_voro_index_um,'Bound_Voronoi_Sides_RI',regularity_voro_sides, 'Bound_NN_RI', regularity_nn_index_um, 'Bound_IC_RI', regularity_ic_index_um,...
+                      'Unbound_Density', density_dc_um ,'Unbound_NN_Distance', mean_nn_dist_um, 'Unbound_IC_Distance',mean_inter_cell_dist_um, 'Unbound_Furthest_Distance',mean_max_cell_dist_um);
+
+mosaic_stats_deg = struct('Number_Unbound_Cells', numcells,'Number_Bound_Cells', sum(bound), 'Total_Area', total_coord_area_deg, 'Total_Bound_Area',total_cell_area_deg,...                      
+                      'Bound_Density',density_bound_deg, 'Bound_NN_Distance',mean_correct_nn_dist_deg,'Bound_IC_Distance',mean_correct_inter_cell_dist_deg,'Bound_Furthest_Distance',mean_correct_max_cell_dist_deg,...
+                      'Bound_Mean_Voronoi_Area', mean_cellarea_deg,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', 0,...
+                      'Bound_Voronoi_Area_RI',regularity_voro_index_deg,'Bound_Voronoi_Sides_RI',regularity_voro_sides, 'Bound_NN_RI', regularity_nn_index_deg, 'Bound_IC_RI', regularity_ic_index_deg,...
+                      'Unbound_Density', density_dc_deg ,'Unbound_NN_Distance', mean_nn_dist_deg, 'Unbound_IC_Distance',mean_inter_cell_dist_deg, 'Unbound_Furthest_Distance',mean_max_cell_dist_deg);
+
+mosaic_stats_arcmin = struct('Number_Unbound_Cells', numcells,'Number_Bound_Cells', sum(bound), 'Total_Area', total_coord_area_arcmin, 'Total_Bound_Area',total_cell_area_arcmin,...                      
+                      'Bound_Density',density_bound_arcmin, 'Bound_NN_Distance',mean_correct_nn_dist_arcmin,'Bound_IC_Distance',mean_correct_inter_cell_dist_arcmin,'Bound_Furthest_Distance',mean_correct_max_cell_dist_arcmin,...
+                      'Bound_Mean_Voronoi_Area', mean_cellarea_arcmin,'Bound_Percent_Six_Sided_Voronoi',percent_six_sided,'Unbound_DRP_Distance', 0,...
+                      'Bound_Voronoi_Area_RI',regularity_voro_index_arcmin,'Bound_Voronoi_Sides_RI',regularity_voro_sides, 'Bound_NN_RI', regularity_nn_index_arcmin, 'Bound_IC_RI', regularity_ic_index_arcmin,...
+                      'Unbound_Density', density_dc_arcmin ,'Unbound_NN_Distance', mean_nn_dist_arcmin, 'Unbound_IC_Distance',mean_inter_cell_dist_arcmin, 'Unbound_Furthest_Distance',mean_max_cell_dist_arcmin);
+
+
+
 
 end
 
