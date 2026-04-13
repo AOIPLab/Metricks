@@ -2,157 +2,103 @@
 % Purpose: To make maps separately from the Mosaic Metricks Map script
 % Input: Folder with window_results .mat files, coordinate files, and
 % tif images for each subject.
-% - The script can run multiple subjects at a time or just one
+% - The script can currently only run 1 subject at a time 
 % Output: Map or Map and csv if bound_density_deg selected
 % Date created: 1/24/24
 % Jenna Grieshop
+% Updated by MG on 4/13/2026 To display maps for updated Map script output
 
-clear all
-clc
-
+clear all;
+close all;
+clc;
 
 basepath = which('Stand_Alone_Map_Creator.m');
 [basepath] = fileparts(basepath);
 
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
-% Update clims based on min and max of your data
-clims = [500 2500]; % Set limits of color scale so all images use the same scale
+% Get the file and path 
+[filename, filepath] = uigetfile('.','Select a .mat file to generate a map figure');
 
-% Options of maps to create for user to select
-liststr = {'bound_area','unbound_area','bound_num_cells', 'unbound_num_cells', 'bound_density_deg', 'bound_density'};
-[selectedMap, oked] = listdlg('PromptString','Select map type:',...
-                              'SelectionMode','single',...
-                              'ListString',liststr);
-if oked == 0
-    error('Cancelled by user.');
+% Load in current map
+CurrentMap = load(fullfile(filepath,filename));
+dummyName = fieldnames(CurrentMap);
+
+% Clims can either be found automatically or the user can set their own
+% bounds to ensure all figures of a given folder will be on the same clims
+climType = questdlg('How would you like to set your clims?', ...
+	'Specify clims', ...
+	'Auto','Manual','Auto');
+
+switch climType
+    case 'Auto'
+        % Find the min and max value of the map and +/- 10% to pad the
+        % clims slightly - per JC 4/13/2026
+        
+        Map_min = min(CurrentMap.(dummyName{1}),[], 'all');
+        Map_max = max(CurrentMap.(dummyName{1}),[], 'all');
+        
+        Clim_min = Map_min - (0.10*Map_min);
+        Clim_max = Map_max + (0.10*Map_max);
+    case 'Manual'
+        % Launch another popup window so the user can type in the min and
+        % max clim values of their choice... handy for plotting multiple
+        % maps on the same set of clims
+        manual_prompt = {'Clim Min', 'Clim Max'};
+        dlgtitle = 'Please define Clim values';
+        fieldsize = [1 20; 1 20];
+        definput = {'0','10000'};
+        manual_clims = inputdlg(manual_prompt,dlgtitle,fieldsize,definput);
+
+        Clim_min = str2double(manual_clims{1});
+        Clim_max = str2double(manual_clims{2});
 end
 
-selectedMap = liststr{selectedMap};  
+% breaking apart the map filenames to find the subject ID and the map type
+% + unit. Note for VCAR it will say matrix for unit...(it's unitless)
+fileparts = split(filename, '_');
+subjectID = [fileparts{1}, '_', fileparts{2}];
+selectedMap = [fileparts{5}, '_', fileparts{6}];
 
-% Get directory of data
-rootPath = uigetdir('.','Select directory containing analyses');
-rootDir = dir(rootPath);
-rootDir = struct2cell(rootDir)';
+interpedMap = CurrentMap.(dummyName{1});
+smoothedInterpedMap = imgaussfilt(interpedMap,20); % Filters interpedMap with a 2-D Gaussian smoothing kernel with standard deviation 20
 
-% Find all csv and txt files
-[fnameList, isadir ] = read_folder_contents(rootPath,'csv');
-[fnameListTxt, isDirTxt ] = read_folder_contents(rootPath,'txt');
+% Set nans to 0
+interpedMap(isnan(interpedMap)) =0;
+smoothedInterpedMap(isnan(smoothedInterpedMap)) =0;
 
-fnameList = [fnameList; fnameListTxt];
-isadir = [isadir;isDirTxt];
+vmap=viridis; %calls viridis colormap function from library
 
+clims = [Clim_min Clim_max];
 
-% Looks for all the window results
-winResultsDir = rootDir(...
-    ~cellfun(@isempty, strfind(rootDir(:,1), 'window_results')),:);
+% Plot the map
+dispfig=figure(1); 
+imagesc(interpedMap,clims); % use limits of color scale set above
+axis image;
+colormap(vmap); 
+colorbar; 
 
+% Get the min and max values
+[minVal, minInd] = min(interpedMap(:));
+[maxVal, maxInd] = max(interpedMap(:));
 
-for i=1:size(fnameList,1)
+[minRow,minCol]=ind2sub(size(interpedMap),minInd);
+[maxRow,maxCol]=ind2sub(size(interpedMap),maxInd);
 
-    subjectID = fnameList{i}(1:8);
+% Set title and file name
+title(['Minimum value: ' num2str(minVal) '(' num2str(minCol) ',' num2str(minRow) ') Maximum value: ' num2str(maxVal) '(' num2str(maxCol) ',' num2str(maxRow) ')']);
+resultFname = [selectedMap, '_map_' datestr(now, 'dd_mmm_yyyy')];
 
-    % Read in coordinates - assumes x,y
-    coords=dlmread(fullfile(rootPath,fnameList{i}));
-    
-    % It should ONLY be a coordinate list, that means x,y, and
-    % nothing else.
-    if size(coords,2) ~= 2
-        warning('Coordinate list contains more than 2 columns! Skipping...');
-        continue;
-    end
-
-    % If the image exists use it for the dimensions
-    if exist(fullfile(rootPath, [fnameList{i}(1:end-length('_coords.csv')) '.tif']), 'file')
-
-        im = imread( fullfile(rootPath, [fnameList{i}(1:end-length('_coords.csv')) '.tif']));
-
-        width = size(im,2);
-        height = size(im,1);
-        maxRowVal = height;
-        maxColVal = width;
-    % If it doesn't exist, warn the user and then use coords for the
-    % dimensions
-    else
-        warning(['No matching image file found for ' fnameList{i}]);
-        coords = coords-min(coords)+1;
-        width  = ceil(max(coords(:,1)));
-        height = ceil(max(coords(:,2)));
-        maxRowVal = max(coords(:,2));
-        maxColVal = max(coords(:,1));
-    end
+% Scale to the max of clims 
+scaledMap = interpedMap-min(clims);
+scaledMap(scaledMap <0) =0; % In case there are min values below this
+scaledMap = uint8(255*scaledMap./(max(clims)-min(clims)));
+scaledMap(scaledMap  >255) = 255; % In case there are values above this
+imwrite(scaledMap, vmap, fullfile(filepath,[subjectID, '_', resultFname '_raw.tif'])); % Save map image
 
 
-    % Load in the data
-    data = load(fullfile(winResultsDir{i,2}, winResultsDir{i,1}));
 
-    % Initialize the map and meshgrid
-    interpedMap=zeros([height width]);
-    [Xq, Yq] = meshgrid(1:size(im,2), 1:size(im,1));
-    
-    
-    % Based on the map the user selected, create the interpolation with the
-    % correct data in the struct
-    if selectedMap == "bound_density_deg"
-        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_density_DEG);  
-    elseif selectedMap == "bound_density"
-        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_density); 
-    elseif selectedMap == "bound_area"
-        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_area);       
-    elseif selectedMap == "unbound_area"
-        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.unbound_area);
-    elseif selectedMap == "bound_num_cells"
-        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.bound_num_cells);
-    elseif selectedMap == "unbound_num_cells"
-        scattah = scatteredInterpolant(coords(:,1), coords(:,2), data.win_res.unbound_num_cells);
-    else
-        disp("something is wrong");
-    end
 
-    interpedMap = scattah(Xq,Yq);
-    smoothedInterpedMap = imgaussfilt(interpedMap,20); % Filters interpedMap with a 2-D Gaussian smoothing kernel with standard deviation 20
-    
-    % Set nans to 0
-    interpedMap(isnan(interpedMap)) =0;
-    smoothedInterpedMap(isnan(smoothedInterpedMap)) =0;
-    
-    vmap=viridis; %calls viridis colormap function from library
-    
-   
-    % Plot the map
-    dispfig=figure(1); 
-    imagesc(interpedMap,clims); % use limits of color scale set above
-    axis image;
-    colormap(vmap); 
-    colorbar; 
-
-    % Get the min and max values
-    [minVal, minInd] = min(interpedMap(:));
-    [maxVal, maxInd] = max(interpedMap(:));
-    
-    [minRow,minCol]=ind2sub(size(interpedMap),minInd);
-    [maxRow,maxCol]=ind2sub(size(interpedMap),maxInd);
-  
-    % Set title and file name
-    title(['Minimum value: ' num2str(minVal) '(' num2str(minCol) ',' num2str(minRow) ') Maximum value: ' num2str(maxVal) '(' num2str(maxCol) ',' num2str(maxRow) ')']);
-    resultFname = [selectedMap, '_map_' datestr(now, 'dd_mmm_yyyy')];
-    
-    % Scale to the max of clims 
-    scaledMap = interpedMap-min(clims);
-    scaledMap(scaledMap <0) =0; % In case there are min values below this
-    scaledMap = uint8(255*scaledMap./(max(clims)-min(clims)));
-    scaledMap(scaledMap  >255) = 255; % In case there are values above this
-    imwrite(scaledMap, vmap, fullfile(rootPath,[subjectID, '_', resultFname '_raw.tif'])); % Save map image
-
-    % If bound density deg selected save csv and mat file as well
-    if selectedMap == "bound_density_deg"
-        fileName = fullfile(rootPath, [subjectID '_bounddensity_matrix_DEG_' datestr(now, 'dd_mmm_yyyy') '.csv']);
-        writematrix(interpedMap, fileName);
-        % Save matrix as matfile
-        save(fullfile(rootPath, [subjectID '_bounddensity_matrix_DEG_MATFILE_' datestr(now, 'dd_mmm_yyyy') '.mat']), "interpedMap");
-    end
-
-end
 
 
 
