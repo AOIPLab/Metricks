@@ -544,6 +544,12 @@ for i=1:size(fnamelist,1)
             NND_bound_mm = zeros([size(coords,1) 1]);
             NND_bound_arcmin = zeros([size(coords,1) 1]);
 
+            % Only outputting one version each of the regularity index maps
+            % because they should be unitless since they are calculated by
+            % dividing the mean in unit x by the stdev in unit x. They are
+            % technically difference in the 10^-15th decimal place due to
+            % rounding errors from scaleval but those differences are well
+            % beyond sig figs -MG 4/13/2026 after confirmation from JC
             VCAR = zeros([size(coords,1) 1]);
             NN_RI = zeros([size(coords,1) 1]);
             ICD_RI = zeros([size(coords,1) 1]);
@@ -680,6 +686,8 @@ for i=1:size(fnamelist,1)
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_deg_matrix_MATFILE_' date '.mat']), "interped_map_NND_deg");
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_NND_arcmin");
 
+            %saving only one map each for the RI metrics... See note above
+            %in line 547-ish - MG 
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_VCAR_matrix_MATFILE_' date '.mat']), "interped_VCAR");
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NN_RI_matrix_MATFILE_' date '.mat']), "interped_NN_RI");
             save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_RI_matrix_MATFILE_' date '.mat']), "interped_ICD_RI");
