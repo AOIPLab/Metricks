@@ -142,7 +142,10 @@ if scalingfname == 0
         end
     end
 else
-    [~, lutData] = load_scaling_file(fullfile(scalingpath,scalingfname));
+    lutData = readtable(fullfile(scalingpath,scalingfname));
+    lut_identifier = table2array(lutData(:,"Var1"));
+    ALs = table2cell(lutData(:,"Var2"));
+    ppds = table2cell(lutData(:,"Var3"));
 end
 
 %%
@@ -163,23 +166,11 @@ for i=1:size(fnamelist,1)
             end
 
             if isnan(scaleinput)
-                % Calculate the scale for this identifier.                                
-                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) );
+                % Calculate the scale for this identifier.  
+                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lut_identifier ) );
+                axiallength = ALs{LUTindex};
+                pixelsperdegree = ppds{LUTindex};
 
-                for x=1:size(LUTindex, 1)
-                    if x == size(LUTindex, 1) % if it is the last/only item in the LUT - if only matches with the eye and not subID will have axial length as NAN (would happen if LUT doesn't have info needed for this dataset)
-                        LUTindex = LUTindex(x);
-                        break
-                    end
-                    val = LUTindex(x+1) - LUTindex(x); % checking if there are two eyes from the same subject in LUT
-                    if val == 1
-                        LUTindex = LUTindex(x);
-                        break
-                    end
-                end
-                
-                axiallength = lutData{2}(LUTindex);
-                pixelsperdegree = lutData{3}(LUTindex);
                 micronsperdegree = (291*axiallength)/24;
 
                 % microns or cones/mm^2 for density
@@ -190,18 +181,7 @@ for i=1:size(fnamelist,1)
 
                 % arcmin
                 scaleval_arcmin = 60/pixelsperdegree;
-                
-                % switch selectedunit
-                    % case 'microns (mm density)'
-                        % scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
-                        % scaleval_deg = 1/pixelsperdegree;
-                    % case 'degrees'
-                        % scaleval_deg = 1/pixelsperdegree;
-                        % scaleval_deg = 1/pixelsperdegree;
-                    % case 'arcmin'
-                        % scaleval_arcmin = 60/pixelsperdegree;
-                        % scaleval_deg = 1/pixelsperdegree;
-               %end
+               
             else
                 % TODO: MG deal with this if we still want to have the
                 % possibility for user input scale

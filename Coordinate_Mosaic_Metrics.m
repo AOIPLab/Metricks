@@ -53,7 +53,8 @@
 % _only_ the identifier "1235" would match between all images. However, say the
 % two dates have different scales, then you would want to create two rows in the
 % look up table for each date, with identifiers like: "1235_dateoftheyear" and
-% "1235_differentdateoftheyear".
+% "1235_differentdateoftheyear". To have the best chance at sucess, it is a
+% good practice to just use the file name as the identifier.
 % 
 % **If you do not wish to use a lookup table, then press "cancel", and the software
 % will allow you put in your own scale in UNITS/pixel.**
@@ -141,22 +142,13 @@ path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 
 [basepath] = uigetdir(pwd);
 
+first = true;
+
 [fnamelist, isadir ] = read_folder_contents(basepath,'csv');
 [fnamelisttxt, isadirtxt ] = read_folder_contents(basepath,'txt');
 
 fnamelist = [fnamelist; fnamelisttxt];
-isadir = [isadir;isadirtxt];
-
-
-liststr = {'microns (mm density)','degrees','arcmin'};
-[selectedunit, oked] = listdlg('PromptString','Select output units:',...
-                              'SelectionMode','single',...
-                              'ListString',liststr);
-if oked == 0
-    error('Cancelled by user.');
-end
-
-selectedunit = liststr{selectedunit};                          
+isadir = [isadir;isadirtxt];                       
 
 [scalingfname, scalingpath] = uigetfile(fullfile(basepath,'*.csv'),'Select scaling LUT, OR cancel if you want to input the scale directly.');
 
@@ -174,7 +166,11 @@ if scalingfname == 0
         end
     end
 else
-    [~, lutData] = load_scaling_file(fullfile(scalingpath,scalingfname));
+    lutData = readtable(fullfile(scalingpath,scalingfname));
+    lut_identifier = table2array(lutData(:,"Var1"));
+    ALs = table2cell(lutData(:,"Var2"));
+    ppds = table2cell(lutData(:,"Var3"));
+
 end
 
 
@@ -197,40 +193,26 @@ for i=1:size(fnamelist,1)
 
             if isnan(scaleinput)
                 % Calculate the scale for this identifier.                                
-                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lutData{1} ) ); %finds locations in lutData{1} that have matching IDs or eyes as the file names
-
-                % JG addition/bug fix 12/7/2022
-                % find the index for the file that matches id and eye info
-                for x=1:size(LUTindex, 1)
-                    if x == size(LUTindex, 1) % if it is the last/only item in the LUT - if only matches with the eye and not subID will have axial length as NAN (would happen if LUT doesn't have info needed for this dataset)
-                        LUTindex = LUTindex(x);
-                        break
-                    end
-                    val = LUTindex(x+1) - LUTindex(x); % checking if there are two eyes from the same subject in LUT
-                    if val == 1
-                        LUTindex = LUTindex(x);
-                        break
-                    end
-                end
-                                
-                axiallength = lutData{2}(LUTindex);
-                pixelsperdegree = lutData{3}(LUTindex);
+                LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lut_identifier ) );
+                axiallength = ALs{LUTindex};
+                pixelsperdegree = ppds{LUTindex};
 
                 micronsperdegree = (291*axiallength)/24;
-                
-                switch selectedunit
-                    case 'microns (mm density)'
-                        scaleval = 1 / (pixelsperdegree / micronsperdegree);
-                    case 'degrees'
-                        scaleval = 1/pixelsperdegree;
-                    case 'arcmin'
-                        scaleval = 60/pixelsperdegree;
-                end
-            else
-                scaleval = scaleinput;
-            end
 
-            
+                % microns or cones/mm^2 for density
+                scaleval_um = 1 / (pixelsperdegree / micronsperdegree);
+
+                % degrees
+                scaleval_deg = 1/pixelsperdegree;
+
+                % arcmin
+                scaleval_arcmin = 60/pixelsperdegree;
+                
+            else
+                % TODO: MG deal with this if we still want to have the
+                % possibility for user input scale
+                scaleval_um = scaleinput;
+            end
             
             %Read in coordinates - assumes x,y
             coords=dlmread(fullfile(basepath,fnamelist{i}));
@@ -251,7 +233,7 @@ for i=1:size(fnamelist,1)
                 height = size(im,1);
 
                 if ~isempty(windowsize)
-                    pixelwindowsize = windowsize/scaleval;
+                    pixelwindowsize = windowsize/scaleval_um;
 
                     diffwidth  = (width-pixelwindowsize)/2;
                     diffheight = (height-pixelwindowsize)/2;
@@ -279,7 +261,7 @@ for i=1:size(fnamelist,1)
                 height = max(coords(:,2)) - min(coords(:,2));
 
                 if ~isempty(windowsize)
-                    pixelwindowsize = windowsize/scaleval;
+                    pixelwindowsize = windowsize/scaleval_um;
 
                     diffwidth  = (width-pixelwindowsize)/2;
                     diffheight = (height-pixelwindowsize)/2;
@@ -296,95 +278,49 @@ for i=1:size(fnamelist,1)
             end
 
 
-            statistics = determine_mosaic_stats( clipped_coords, scaleval,scaleval, selectedunit, clip_start_end ,NaN, 4 );
+            [statistics_um, statistics_deg, statistics_arcmin] = determine_mosaic_stats(clipped_coords, pixelsperdegree, micronsperdegree, clip_start_end ,NaN, 4);
+
 
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% Determine FFT Power Spectra %%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % TODO update to have all units not just um
             if (exist('fit_fourier_spacing') == 2) && exist(fullfile(basepath, [fnamelist{i}(1:end-length('_coords.csv')) '.tif']), 'file')==2
                 
                 clipped_im = im(round(clip_start_end(3)+1:clip_start_end(4)), round(clip_start_end(1)+1:clip_start_end(2)) );
                 
                 [pixel_spac, ~, quality] = fit_fourier_spacing(clipped_im, min(size(clipped_im)), false,'row');
-                statistics.DFT_Row_Spacing = pixel_spac*scaleval;
-                statistics.DFT_Row_Quality = quality;
+                statistics_um.DFT_Row_Spacing = pixel_spac*scaleval_um;
+                statistics_um.DFT_Row_Quality = quality;
                 
                 [pixel_spac, ~, quality] = fit_fourier_spacing(clipped_im, min(size(clipped_im)), false,'cell');
-                statistics.DFT_Cell_Spacing = pixel_spac*scaleval;
-                statistics.DFT_Cell_Quality = quality;
+                statistics_um.DFT_Cell_Spacing = pixel_spac*scaleval_um;
+                statistics_um.DFT_Cell_Quality = quality;
                 
                 
             end
 
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% Write Results %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-            warning off;
-            [ success ] = mkdir(basepath,'Results');
-            warning on;
-            
             if isempty(windowsize)
-                result_fname = [getparent(basepath,'short') '_coordstats_' date '.csv'];
+                result_fname_um = [getparent(basepath,'short') '_coordstats_' date, '_um', '.csv'];
+                result_fname_deg = [getparent(basepath,'short') '_coordstats_' date, '_deg', '.csv'];
+                result_fname_arcmin = [getparent(basepath,'short') '_coordstats_' date, '_arcmin', '.csv'];
             else
-                result_fname = [getparent(basepath,'short') '_coordstats_' date '_' num2str(windowsize) selectedunit '.csv'];
+                result_fname_um = [getparent(basepath,'short') '_coordstats_' date '_' num2str(windowsize), '_um',  '.csv'];
+                result_fname_deg = [getparent(basepath,'short') '_coordstats_' date '_' num2str(windowsize) , '_deg', '.csv'];
+                result_fname_arcmin = [getparent(basepath,'short') '_coordstats_' date '_' num2str(windowsize) , '_arcmin', '.csv'];
             end
-            if success
 
-                if first
-                    fid= fopen(fullfile(basepath,'Results', result_fname),'w');
-
-                    % If it is the first time writing the file, then write the
-                    % header
-                    fprintf(fid,'Filename');
-
-                    % Grab the names of the fields we're working with
-                    datafields = fieldnames(statistics);
-
-                    numfields = size(datafields,1);                
-
-                    k=1;
-
-                    while k <= numfields
-
-                        val = statistics.(datafields{k});
-
-                        % If it is a multi-dimensional field, remove it
-                        % from our csv, and write it separately.
-                        if size(val,1) ~= 1 || size(val,2) ~= 1   
-                            disp([datafields{k} ' removed!']);
-                            datafields = datafields([1:k-1 k+1:end]);                        
-                            numfields = numfields-1;                        
-                        else
-    %                         disp([fields{k} ' added!']);
-                            fprintf(fid,',%s',datafields{k});
-                            k = k+1;
-                        end 
+            % call write_metrics function
+            write_metrics_results(basepath, result_fname_um, fnamelist{i}, statistics_um, first);
+            write_metrics_results(basepath, result_fname_deg, fnamelist{i}, statistics_deg, first);
+            write_metrics_results(basepath, result_fname_arcmin, fnamelist{i}, statistics_arcmin, first);
+            first = false;
 
 
-                    end  
-                    fprintf(fid,'\n');
-
-                    first = false;
-
-                else % If it isn't the first entry, then append.
-                    fid= fopen(fullfile(basepath,'Results',result_fname ),'a');
-                end
-
-                % Write the file we've worked on as the first column
-                fprintf(fid,'%s', fnamelist{i});
-
-                for k=1:size(datafields,1)
-    %                 fields{k}
-                    if size(val,1) == 1 || size(val,2) == 1
-                        val = statistics.(datafields{k});
-
-                        fprintf(fid,',%1.2f',val);
-                    end
-                end
-
-                fprintf(fid,'\n');
-                fclose(fid);
-            else
-                error('Failed to make results folder! Exiting...');
-            end
 
         end
     catch ex

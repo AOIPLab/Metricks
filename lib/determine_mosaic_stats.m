@@ -158,9 +158,9 @@ total_cell_area_deg = sum(cellarea_deg);
 
 pixel_density = numcells/(clipped_row_col(1)*clipped_row_col(2));
 
-density_dc_um=numcells/total_coord_area_um; % cells/mm^2
-density_dc_deg=numcells/total_coord_area_deg; % cells/mm^2
-density_dc_arcmin=numcells/total_coord_area_arcmin; % cells/mm^2
+density_dc_um=(1000^2)*numcells/total_coord_area_um; % cells/um^2
+density_dc_deg=numcells/total_coord_area_deg; 
+density_dc_arcmin=numcells/total_coord_area_arcmin; 
 
 if ~isempty(coords_bound)
     
