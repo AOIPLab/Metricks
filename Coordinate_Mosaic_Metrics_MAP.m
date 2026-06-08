@@ -142,7 +142,7 @@ if scalingfname == 0
         end
     end
 else
-    lutData = readtable(fullfile(scalingpath,scalingfname));
+    lutData = readtable(fullfile(scalingpath,scalingfname),'Delimiter', ',');
     lut_identifier = table2array(lutData(:,"Var1"));
     ALs = table2cell(lutData(:,"Var2"));
     ppds = table2cell(lutData(:,"Var3"));
@@ -651,41 +651,41 @@ for i=1:size(fnamelist,1)
             % filename = fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_matrix_' date '.csv']);
             % writematrix(interped_map, filename);
 
-            subjectID = lutData{1};% extract subject ID; added by Katie Litts in 2019
+            subjectID = lutData.Var1;% extract subject ID; added by Katie Litts in 2019
 
             %save matrix as matfile
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_mm_matrix_MATFILE_' date '.mat']), "interped_map_density_mm");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_deg_matrix_MATFILE_' date '.mat']), "interped_map_density_deg");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_bounddensity_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_density_arcmin");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_bounddensity_mm_matrix_MATFILE_' date '.mat']), "interped_map_density_mm");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_bounddensity_deg_matrix_MATFILE_' date '.mat']), "interped_map_density_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_bounddensity_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_density_arcmin");
 
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_mm_matrix_MATFILE_' date '.mat']), "interped_map_ICD_mm");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_deg_matrix_MATFILE_' date '.mat']), "interped_map_ICD_deg");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_ICD_arcmin");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_ICD_mm_matrix_MATFILE_' date '.mat']), "interped_map_ICD_mm");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_ICD_deg_matrix_MATFILE_' date '.mat']), "interped_map_ICD_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_ICD_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_ICD_arcmin");
 
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_mm_matrix_MATFILE_' date '.mat']), "interped_map_NND_mm");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_deg_matrix_MATFILE_' date '.mat']), "interped_map_NND_deg");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NND_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_NND_arcmin");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_NND_mm_matrix_MATFILE_' date '.mat']), "interped_map_NND_mm");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_NND_deg_matrix_MATFILE_' date '.mat']), "interped_map_NND_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_NND_arcmin_matrix_MATFILE_' date '.mat']), "interped_map_NND_arcmin");
 
             %saving only one map each for the RI metrics... See note above
             %in line 547-ish - MG 
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_VCAR_matrix_MATFILE_' date '.mat']), "interped_VCAR");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_NN_RI_matrix_MATFILE_' date '.mat']), "interped_NN_RI");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_ICD_RI_matrix_MATFILE_' date '.mat']), "interped_ICD_RI");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_VCAR_matrix_MATFILE_' date '.mat']), "interped_VCAR");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_NN_RI_matrix_MATFILE_' date '.mat']), "interped_NN_RI");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_ICD_RI_matrix_MATFILE_' date '.mat']), "interped_ICD_RI");
 
 
             %save additional window results for each subject
             win_res = struct('bound_area', bound_area , 'unbound_area', unbound_area, 'bound_num_cells', bound_num_cells, 'unbound_num_cells', unbound_num_cells, 'bound_density_DEG', density_bound_deg, 'bound_density', density_bound_mm);
-            save(fullfile(basepath, [subjectID{LUTindex}, '_window_results_', date, '.mat']), "win_res");
+            save(fullfile(basepath, [subjectID{LUTindex}, '_window_' num2string(upper_bound) '_window_results_', date, '.mat']), "win_res");
 
             % saving the statistics structs to prevent needing to re-run
             % data 
 
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_stats_um_' date '.mat']), "statistics_um");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_stats_deg_' date '.mat']), "statistics_deg");
-            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_stats_arcmin_' date '.mat']), "statistics_arcmin");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_stats_um_' date '.mat']), "statistics_um");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_stats_deg_' date '.mat']), "statistics_deg");
+            save(fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_stats_arcmin_' date '.mat']), "statistics_arcmin");
 
             % Saving the index of removed cells to monitor repeatability 
-            writecell(trimlist, fullfile(basepath,'Results',[subjectID{LUTindex} '_removedCoords_' date '.csv']));
+            writecell(trimlist, fullfile(basepath,'Results',[subjectID{LUTindex} '_window_' num2string(upper_bound) '_removedCoords_' date '.csv']));
             %%
         end
     catch ex
