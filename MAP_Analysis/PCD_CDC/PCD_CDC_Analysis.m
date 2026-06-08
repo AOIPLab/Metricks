@@ -27,7 +27,7 @@ path(path,fullfile(basePath,'lib'));
 dataPath = uigetdir('.','Select directory containing analyses');
 
 % Read in csv names and then have user select the LUT
-[fnameList] = read_folder_contents(dataPath,'csv');
+[fnameList] = read_folder_contents(dataPath,'mat');
 [scalingFname, scalingPath] = uigetfile(fullfile(dataPath,'*.csv'),'Select scaling LUT.');
 
 % Remove LUT file from fnameList
@@ -108,7 +108,11 @@ for i=1:size(fnameList,1) % Go through all files in list
 
     
     % Load in the density map and find the max value (peak)
-    densityMap = csvread(fullfile(dataPath,fnameList{i}));
+    % densityMap = csvread(fullfile(dataPath,fnameList{i}));
+    CurrentMap = load(fullfile(dataPath,fnameList{i}));
+    dummyName = fieldnames(CurrentMap);
+
+    densityMap = CurrentMap.(dummyName{1});
     peak = max(densityMap(:));
 
 
