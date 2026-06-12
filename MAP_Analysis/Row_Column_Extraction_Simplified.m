@@ -12,7 +12,7 @@
 % identifier on line 25.
 % 
 % Then user selects the PCD CDC analysis summary file with OS/OD eye column 
-% added after the file name column. 
+% added after the file name column and PPD column added as the last column.
 %
 % Outputs: .csv files with N, T, S, I strips extracted from the density
 % matrices through the CDC
@@ -46,6 +46,16 @@ output_root = fullfile(root_path_raw,'Results');
 % load in cdc LUT data and extract all the subject IDs
 LUT_data = readtable(fullfile(pathname_cdc, filename_cdc));
 
+% Unit selection by the user
+list2 = {'Microns', 'Degrees'};
+[indx2, tf2] = listdlg('PromptString', 'Select the x-axis units.', 'SelectionMode', 'single', 'ListString', list2);
+if tf2 == 1
+    unitStr = list2{indx2};
+else
+    % Canceled dialog box - end the program
+    return
+end
+
 
 
 %% INDIVIDUAL SUBJECTS
@@ -61,9 +71,17 @@ for i=1:size(file_names,1)
         end
     end
 
+     if unitStr == "Microns"
+        % get the scale factor
+        scale = LUT_data{index,11}; % umpp
+     else
+         % get the scale factor for deg
+         pixelsPerDegree = LUT_data{index,12};
+         scale = 1/pixelsPerDegree;
+    end
     % get the scale factor
-    scale = LUT_data{index,11}; % umpp
     eye = LUT_data{index,2};
+    
 
     % load in the csv data and master cdc coords
 
@@ -113,19 +131,19 @@ for i=1:size(file_names,1)
 
 %% graph individual plots
     % basic plot of the individual results
-    % figure(1)
-    % plot(xy_h_converted(:,1), xy_h_converted(:,2));
-    % title("Horizontal Density Through CDC Point");
-    % xlabel("Microns");
-    % ylabel("Density");
-    % hold off
-    % 
-    % figure(2)
-    % plot(xy_v_converted(:,1), xy_v_converted(:,2));
-    % title("Vertical Density Through CDC Point");
-    % xlabel("Microns");
-    % ylabel("Density");
-    % hold off
+    figure(1)
+    plot(xy_h_converted(:,1), xy_h_converted(:,2));
+    title("Horizontal Density Through CDC Point");
+    xlabel("Microns");
+    ylabel("Density");
+    hold off
+
+    figure(2)
+    plot(xy_v_converted(:,1), xy_v_converted(:,2));
+    title("Vertical Density Through CDC Point");
+    xlabel("Microns");
+    ylabel("Density");
+    hold off
 
 
     %% split data at the cdc point
@@ -155,18 +173,18 @@ for i=1:size(file_names,1)
     headers = {'Ecc_Horz_Temporal_um', 'Density_Horz_Temporal', 'Ecc_Horz_Nasal_um', 'Density_Horz_Nasal', 'Ecc_Vert_Superior_um,', 'Density_Vert_Superior', 'Ecc_Vert_Inferior_um', 'Density_Vert_Inferior'};
     
     %% Plotting for sanity check
-    % figure(3)
-    % plot(v_ecc_t, v_dens{1});
-    % hold on
-    % plot(v_ecc_b, v_dens{2});
-    % plot(h_ecc_l, h_dens{1});
-    % plot(h_ecc_r, h_dens{2});
+    figure(3)
+    plot(v_ecc_t, v_dens{1});
+    hold on
+    plot(v_ecc_b, v_dens{2});
+    plot(h_ecc_l, h_dens{1});
+    plot(h_ecc_r, h_dens{2});
 
 
     %% ---- Save output ----
 
     % create the output file name
-    outname = strcat(file_names{i},'_', eye, '_HorizVertDensity_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+    outname = strcat(file_names{i},'_', eye,  '_HorizVertDensity_', unitStr, '_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
     outfile = fullfile(output_root, outname);
 
     % organize all the data into a format that can be saved to the csv
