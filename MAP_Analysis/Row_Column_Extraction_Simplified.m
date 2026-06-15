@@ -83,8 +83,6 @@ for i=1:size(file_names,1)
     eye = LUT_data{index,2};
     
 
-    % load in the csv data and master cdc coords
-
     % Load in current map
     CurrentMap = load(fullfile(root_path_raw,file_names{i}));
     dummyName = fieldnames(CurrentMap);
@@ -109,15 +107,9 @@ for i=1:size(file_names,1)
     xy_h_converted = zeros(length(data.x_h), 2);
     xy_v_converted = zeros(length(data.x_v), 2);
 
-    % convert the data to be all in the same orientation.
+    % scale data and store
     for j=1:length(data.x_h)
-        % check what eye - if left flip sign so that temporal is negative -
-        % need eye from the lut file to do this
-        if strcmp(eye,'OD')
-            xy_h_converted(j,1) = (data.x_h(j) - cdc_y + 1) * scale; % x values for h now in um
-        else
-            xy_h_converted(j,1) = -(data.x_h(j) - cdc_y + 1) * scale; % x values for h now in um  
-        end
+        xy_h_converted(j,1) = (data.x_h(j) - cdc_y + 1) * scale; % x values for h now in um
         xy_v_converted(j,1) = (data.x_v(j) - cdc_x + 1) * scale; %  x values for v now in um
         % y values are not scaled
         xy_h_converted(j,2) = data.y_h(j);
@@ -134,14 +126,14 @@ for i=1:size(file_names,1)
     figure(1)
     plot(xy_h_converted(:,1), xy_h_converted(:,2));
     title("Horizontal Density Through CDC Point");
-    xlabel("Microns");
+    xlabel(unitStr);
     ylabel("Density");
     hold off
 
     figure(2)
     plot(xy_v_converted(:,1), xy_v_converted(:,2));
     title("Vertical Density Through CDC Point");
-    xlabel("Microns");
+    xlabel(unitStr);
     ylabel("Density");
     hold off
 
@@ -149,27 +141,33 @@ for i=1:size(file_names,1)
     %% split data at the cdc point
 
     % find the 0 point in the eccentricity
-    v_0_index = find(all_subjects_raw_v_rc{1,1} == 0); 
-    h_0_index = find(all_subjects_raw_h_rc{1,1} == 0); 
+    v_0_index = find(all_subjects_raw_v_rc{1,i} == 0); 
+    h_0_index = find(all_subjects_raw_h_rc{1,i} == 0); 
 
     % split the vertical data into top and bottom
-    v_ecc_t = -all_subjects_raw_v_rc{1,1}(1:v_0_index,1);
-    v_dens{1} = all_subjects_raw_v_rc{1,1}(1:v_0_index,2)'; % top
+    v_ecc_t = -all_subjects_raw_v_rc{1,i}(1:v_0_index,1);
+    v_dens{1} = all_subjects_raw_v_rc{1,i}(1:v_0_index,2)'; % top
 
-    v_ecc_b = all_subjects_raw_v_rc{1,1}(v_0_index:end,1);
-    v_dens{2} = all_subjects_raw_v_rc{1,1}(v_0_index:end,2)'; % bottom
+    v_ecc_b = all_subjects_raw_v_rc{1,i}(v_0_index:end,1);
+    v_dens{2} = all_subjects_raw_v_rc{1,i}(v_0_index:end,2)'; % bottom
 
     % split the horizontal data into left and right
-    h_ecc_l = -all_subjects_raw_h_rc{1,1}(1:h_0_index,1);
-    h_dens{1} = all_subjects_raw_h_rc{1,1}(1:h_0_index,2)'; % left
+    h_ecc_l = -all_subjects_raw_h_rc{1,i}(1:h_0_index,1);
+    h_dens{1} = all_subjects_raw_h_rc{1,i}(1:h_0_index,2)'; % left
     
-    h_ecc_r = all_subjects_raw_h_rc{1,1}(h_0_index:end,1);
-    h_dens{2} = all_subjects_raw_h_rc{1,1}(h_0_index:end,2)'; % right
+    h_ecc_r = all_subjects_raw_h_rc{1,i}(h_0_index:end,1);
+    h_dens{2} = all_subjects_raw_h_rc{1,i}(h_0_index:end,2)'; % right
 
 
 
     % compile results and create headers for output sheet
-    results = {h_ecc_l, h_dens{1}', h_ecc_r, h_dens{2}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
+    % OD - left is temporal, OS - right is temporal
+    if strcmp(eye,'OD')
+        results = {h_ecc_l, h_dens{1}', h_ecc_r, h_dens{2}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
+    else
+        results = {h_ecc_r, h_dens{2}', h_ecc_l, h_dens{1}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
+    end
+   
     headers = {'Ecc_Horz_Temporal_um', 'Density_Horz_Temporal', 'Ecc_Horz_Nasal_um', 'Density_Horz_Nasal', 'Ecc_Vert_Superior_um,', 'Density_Vert_Superior', 'Ecc_Vert_Inferior_um', 'Density_Vert_Inferior'};
     
     %% Plotting for sanity check
@@ -179,6 +177,10 @@ for i=1:size(file_names,1)
     plot(v_ecc_b, v_dens{2});
     plot(h_ecc_l, h_dens{1});
     plot(h_ecc_r, h_dens{2});
+    title("Density Through CDC Point");
+    xlabel(unitStr);
+    ylabel("Density");
+    hold off
 
 
     %% ---- Save output ----
