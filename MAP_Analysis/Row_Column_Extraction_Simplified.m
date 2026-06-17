@@ -24,6 +24,8 @@ clc
 
 identifier = 'bounddensity_mm_matrix';
 
+Meridian = {'Temporal', 'Nasal', 'Superior', 'Inferior'};
+
 basePath = which('Row_Column_Extraction_Simplified.m');
 
 [basePath ] = fileparts(basePath);
@@ -162,13 +164,14 @@ for i=1:size(file_names,1)
 
     % compile results and create headers for output sheet
     % OD - left is temporal, OS - right is temporal
+    % order if temporal, nasal, superior, inferior
     if strcmp(eye,'OD')
-        results = {h_ecc_l, h_dens{1}', h_ecc_r, h_dens{2}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
+        results = {flipud(h_ecc_l), flipud(h_dens{1}'), h_ecc_r, h_dens{2}', flipud(v_ecc_t), flipud(v_dens{1}'), v_ecc_b, v_dens{2}'};
     else
-        results = {h_ecc_r, h_dens{2}', h_ecc_l, h_dens{1}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
+        results = {h_ecc_r, h_dens{2}', flipud(h_ecc_l), flipud(h_dens{1}'), flipud(v_ecc_t), flipud(v_dens{1}'), v_ecc_b, v_dens{2}'};
     end
    
-    headers = {'Ecc_Horz_Temporal_um', 'Density_Horz_Temporal', 'Ecc_Horz_Nasal_um', 'Density_Horz_Nasal', 'Ecc_Vert_Superior_um,', 'Density_Vert_Superior', 'Ecc_Vert_Inferior_um', 'Density_Vert_Inferior'};
+   
     
     %% Plotting for sanity check
     figure(3)
@@ -185,17 +188,17 @@ for i=1:size(file_names,1)
 
     %% ---- Save output ----
 
-    % create the output file name
-    outname = strcat(file_names{i},'_', eye,  '_HorizVertDensity_', unitStr, '_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
-    outfile = fullfile(output_root, outname);
-
     % organize all the data into a format that can be saved to the csv
-    D = {};
-    for k = 1:numel(results)
-      D(1:numel(results{k}),k)=num2cell(results{k});
+    for k = 1:numel(results)/2
+        % D(1:numel(results{k}),k)=num2cell(results{k});
+        % create the output file name
+        outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+        outfile = fullfile(output_root, outname);
+        output = [results{k*2-1}, results{k*2}];
+        % results = {h_ecc_r, h_dens{2}', h_ecc_l, h_dens{1}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
+        writematrix(output, outfile);
     end
-    combined_output = [headers; D];
-    writecell(combined_output, outfile);
+
 
 
 end
