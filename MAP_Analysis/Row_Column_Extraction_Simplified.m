@@ -3,24 +3,29 @@
 % Created by: Jenna Grieshop
 % Date created: 6/10/2026
 %
-% Description: Extracts individual rows and columns at the CDC
-% coordinates for each subject. 
+% Description: Extracts straight or maltese (radial wedges) meridians 
+% originating at the at the CDC coordinates for each subject.
 %
 % Inputs: User selects directory containing matrices in mat format
 % (could be results from Stdev_Maps, matrix subtraction, etc.). NOTE: if
 % the matrices are not bound density mm matrices, change the file
-% identifier on line 25.
+% identifier on line 25. User is asked if straight cross or maltese. Then
+% how many rows/columns to average if straight ran or angle for the
+% maltese.
 % 
 % Then user selects the PCD CDC analysis summary file with OS/OD eye column 
 % added after the file name column and PPD column added as the last column.
 %
 % Outputs: .csv files with N, T, S, I strips extracted from the density
-% matrices through the CDC
+% matrices through the CDC for straight, maltese, or both.
 % 
 
 close all
 clear all
 clc
+
+maltese = 0;
+straight = 0;
 
 identifier = 'bounddensity_mm_matrix';
 
@@ -58,6 +63,47 @@ else
     return
 end
 
+% Have user select what kind of row/column analysis they'd like to do
+list = {'Straight Cross', 'Maltese Cross'};
+[indx, tf] = listdlg('PromptString', 'Select the following row/column analyses to perform.', 'SelectionMode', 'multiple', 'ListString', list);
+if tf == 1
+    selections = size(indx,2);
+    if selections == 2
+        maltese = 1;
+        straight = 1;
+    else
+        indx_max = max(indx);
+        if indx_max == 1
+            straight = 1;
+        else
+            maltese = 1;
+        end
+    end
+    
+else
+    % Canceled dialog box - end the program
+    return
+end
+
+% Have the user select the thickness of the row/column extraction
+if straight == 1
+    m1 = 'Please enter the desired straight extraction thickness (# of rows/columns) MUST be an odd number:';
+    thickness = inputdlg(m1);
+    thickness = str2double(thickness{1});
+    while mod(thickness, 2) ~= 1 
+        warndlg('WARNING: Must enter odd number for thickness.')
+        thickness = inputdlg(m1);
+        thickness = str2double(thickness{1});
+    end
+end
+
+if maltese ==1
+    % Have the user select the thickness of the row/column extraction
+    m2 = 'Please enter the desired maltese cross angle (degrees):';
+    angle = inputdlg(m2);
+    angle = str2double(angle{1});
+end
+
 
 
 %% INDIVIDUAL SUBJECTS
@@ -81,7 +127,7 @@ for i=1:size(file_names,1)
          pixelsPerDegree = LUT_data{index,12};
          scale = 1/pixelsPerDegree;
     end
-    % get the scale factor
+    % get the eye
     eye = LUT_data{index,2};
     
 
@@ -93,122 +139,65 @@ for i=1:size(file_names,1)
     cdc_x = LUT_data{index,9};
     cdc_y = LUT_data{index,10};
 
+    if straight
 
-    % get row and column of the data
-
-    h_strip = mat_data(:,cdc_x);
-    v_strip = mat_data(cdc_y, :);
-
-    % create x data arrays, reformat y data
-    data.x_h = (0:length(h_strip)-1)';
-    data.x_v = (0:length(v_strip)-1)';
-    data.y_h = h_strip';
-    data.y_v = v_strip';
+        straight_results = straight_cross(mat_data, cdc_x, cdc_y, thickness, scale, eye);
     
-    % initialize matrix for the converted data
-    xy_h_converted = zeros(length(data.x_h), 2);
-    xy_v_converted = zeros(length(data.x_v), 2);
-
-    % scale data and store
-    for j=1:length(data.x_h)
-        xy_h_converted(j,1) = (data.x_h(j) - cdc_y + 1) * scale; % x values for h now in um
-        xy_v_converted(j,1) = (data.x_v(j) - cdc_x + 1) * scale; %  x values for v now in um
-        % y values are not scaled
-        xy_h_converted(j,2) = data.y_h(j);
-        xy_v_converted(j,2) = data.y_v(j);
-    end
-
-    % store data for each subject
-    all_subjects_raw_h_rc{i} = xy_h_converted;
-    all_subjects_raw_v_rc{i} = xy_v_converted;
-
-
-%% graph individual plots
-    % basic plot of the individual results
-    figure(1)
-    plot(xy_h_converted(:,1), xy_h_converted(:,2));
-    title("Horizontal Density Through CDC Point");
-    xlabel(unitStr);
-    ylabel("Density");
-    hold off
-
-    figure(2)
-    plot(xy_v_converted(:,1), xy_v_converted(:,2));
-    title("Vertical Density Through CDC Point");
-    xlabel(unitStr);
-    ylabel("Density");
-    hold off
-
-
-    %% split data at the cdc point
-
-    % find the 0 point in the eccentricity
-    v_0_index = find(all_subjects_raw_v_rc{1,i} == 0); 
-    h_0_index = find(all_subjects_raw_h_rc{1,i} == 0); 
-
-    % split the vertical data into top and bottom
-    v_ecc_t = -all_subjects_raw_v_rc{1,i}(1:v_0_index,1);
-    v_dens{1} = all_subjects_raw_v_rc{1,i}(1:v_0_index,2)'; % top
-
-    v_ecc_b = all_subjects_raw_v_rc{1,i}(v_0_index:end,1);
-    v_dens{2} = all_subjects_raw_v_rc{1,i}(v_0_index:end,2)'; % bottom
-
-    % split the horizontal data into left and right
-    h_ecc_l = -all_subjects_raw_h_rc{1,i}(1:h_0_index,1);
-    h_dens{1} = all_subjects_raw_h_rc{1,i}(1:h_0_index,2)'; % left
+        %% ---- Save output ----
     
-    h_ecc_r = all_subjects_raw_h_rc{1,i}(h_0_index:end,1);
-    h_dens{2} = all_subjects_raw_h_rc{1,i}(h_0_index:end,2)'; % right
+        % organize all the data into a format that can be saved to the csv
+        for k = 1:numel(straight_results)/2
+            % create the output file name
+            outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_Straight_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+            outfile = fullfile(output_root, outname);
+            output = [straight_results{k*2-1}, straight_results{k*2}];
+            writematrix(output, outfile);
+        end
 
-
-
-    % compile results and create headers for output sheet
-    % OD - left is temporal, OS - right is temporal
-    % order if temporal, nasal, superior, inferior
-    if strcmp(eye,'OD')
-        results = {flipud(h_ecc_l), flipud(h_dens{1}'), h_ecc_r, h_dens{2}', flipud(v_ecc_t), flipud(v_dens{1}'), v_ecc_b, v_dens{2}'};
-    else
-        results = {h_ecc_r, h_dens{2}', flipud(h_ecc_l), flipud(h_dens{1}'), flipud(v_ecc_t), flipud(v_dens{1}'), v_ecc_b, v_dens{2}'};
     end
-   
-   
+    if maltese
+        [distance_density_mean, degree_center_points_full] = Extract_radial_densities_one(mat_data, [cdc_x, cdc_y], angle);
+        % now need to save the density curves from 0, 90, 180, 270
+
+        right = distance_density_mean{degree_center_points_full == 0};
+        top = distance_density_mean{degree_center_points_full == 90};
+        left = distance_density_mean{degree_center_points_full == 180};
+        bottom = distance_density_mean{degree_center_points_full == 270};
+
+        ecc_l = (0:size(left,2)-1) * scale;
+        ecc_r = (0:size(right,2)-1) * scale;
+        ecc_t = (0:size(top,2)-1) * scale;
+        ecc_b = (0:size(bottom,2)-1) * scale;
+
+         v_dens{1} = top;
+         v_dens{2} = bottom;
+         h_dens{1} = left;
+         h_dens{2} = right;
+
+        % compile results and create headers for output sheet
+        % OD - left is temporal, OS - right is temporal
+        % order if temporal, nasal, superior, inferior
+        if strcmp(eye,'OD')
+            results = {ecc_l', h_dens{1}', ecc_r', h_dens{2}', ecc_t', v_dens{1}', ecc_b', v_dens{2}'};
+        else
+            results = {ecc_r', h_dens{2}', ecc_l', h_dens{1}', ecc_t', v_dens{1}', ecc_b', v_dens{2}'};
+        end
+
+        
+        %% ---- Save output ----
     
-    %% Plotting for sanity check
-    figure(3)
-    plot(v_ecc_t, v_dens{1});
-    hold on
-    plot(v_ecc_b, v_dens{2});
-    plot(h_ecc_l, h_dens{1});
-    plot(h_ecc_r, h_dens{2});
-    title("Density Through CDC Point");
-    xlabel(unitStr);
-    ylabel("Density");
-    hold off
-
-
-    %% ---- Save output ----
-
-    % organize all the data into a format that can be saved to the csv
-    for k = 1:numel(results)/2
-        % D(1:numel(results{k}),k)=num2cell(results{k});
-        % create the output file name
-        outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
-        outfile = fullfile(output_root, outname);
-        output = [results{k*2-1}, results{k*2}];
-        % results = {h_ecc_r, h_dens{2}', h_ecc_l, h_dens{1}', v_ecc_t, v_dens{1}', v_ecc_b, v_dens{2}'};
-        writematrix(output, outfile);
+        % organize all the data into a format that can be saved to the csv
+        for k = 1:numel(results)/2
+            % create the output file name
+            outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_Maltese_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+            outfile = fullfile(output_root, outname);
+            output = [results{k*2-1}, results{k*2}];
+            writematrix(output, outfile);
+        end
     end
-
-
 
 end
 
-%% save raw data for all subjects
-
-% fname_h_all = fullfile(pathname_cdc, 'all_h_rc_data.mat');
-% fname_v_all = fullfile(pathname_cdc, 'all_v_rc_data.mat');
-% save(fname_h_all, 'all_subjects_raw_h_rc');
-% save(fname_v_all, 'all_subjects_raw_v_rc');
 
 
 
