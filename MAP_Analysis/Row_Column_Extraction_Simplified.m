@@ -4,7 +4,7 @@
 % Date created: 6/10/2026
 %
 % Description: Extracts straight or maltese (radial wedges) meridians 
-% originating at the at the CDC coordinates for each subject.
+% originating at the at the CDC or PCD coordinates for each subject.
 %
 % Inputs: User selects directory containing matrices in mat format
 % (could be results from Stdev_Maps, matrix subtraction, etc.). NOTE: if
@@ -85,6 +85,8 @@ else
     return
 end
 
+
+
 % Have the user select the thickness of the row/column extraction
 if straight == 1
     m1 = 'Please enter the desired straight extraction thickness (# of rows/columns) MUST be an odd number:';
@@ -104,6 +106,15 @@ if maltese ==1
     angle = str2double(angle{1});
 end
 
+% Unit selection by the user
+list3 = {'PCD', 'CDC'};
+[indx3, tf3] = listdlg('PromptString', 'Select PCD or CDC as the extraction basis.', 'SelectionMode', 'single', 'ListString', list3);
+if tf3 == 1
+    basePoint = list3{indx3};
+else
+    % Canceled dialog box - end the program
+    return
+end
 
 
 %% INDIVIDUAL SUBJECTS
@@ -136,19 +147,25 @@ for i=1:size(file_names,1)
     dummyName = fieldnames(CurrentMap);
     mat_data = CurrentMap.(dummyName{1});
 
-    cdc_x = LUT_data{index,9};
-    cdc_y = LUT_data{index,10};
+    if strcmp(basePoint,'CDC')
+        bp_x = LUT_data{index,9};
+        bp_y = LUT_data{index,10};
+    else
+        bp_x = LUT_data{index, 4};
+        bp_y = LUT_data{index, 5};
+    end
+
 
     if straight
 
-        straight_results = straight_cross(mat_data, cdc_x, cdc_y, thickness, scale, eye);
+        straight_results = straight_cross(mat_data, bp_x, bp_y, thickness, scale, eye);
     
         %% ---- Save output ----
     
         % organize all the data into a format that can be saved to the csv
         for k = 1:numel(straight_results)/2
             % create the output file name
-            outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_Straight_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+            outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_', basePoint, '_Straight_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
             outfile = fullfile(output_root, outname);
             output = [straight_results{k*2-1}, straight_results{k*2}];
             writematrix(output, outfile);
@@ -156,7 +173,7 @@ for i=1:size(file_names,1)
 
     end
     if maltese
-        [distance_density_mean, degree_center_points_full] = Extract_radial_densities_one(mat_data, [cdc_x, cdc_y], angle);
+        [distance_density_mean, degree_center_points_full] = Extract_radial_densities_one(mat_data, [bp_x, bp_y], angle);
         % now need to save the density curves from 0, 90, 180, 270
 
         right = distance_density_mean{degree_center_points_full == 0};
@@ -189,8 +206,8 @@ for i=1:size(file_names,1)
         % organize all the data into a format that can be saved to the csv
         for k = 1:numel(results)/2
             % create the output file name
-            outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_Maltese_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
-            outfile = fullfile(output_root, outname);
+            outname = strcat(file_names{i},'_', eye, '_',  Meridian{k}, '_', unitStr, '_', basePoint, '_Maltese_', string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '.csv');
+            outfile = fullfile(output_root, outname); 
             output = [results{k*2-1}, results{k*2}];
             writematrix(output, outfile);
         end
