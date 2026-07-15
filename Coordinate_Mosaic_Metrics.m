@@ -166,7 +166,7 @@ if scalingfname == 0
         end
     end
 else
-    lutData = readtable(fullfile(scalingpath,scalingfname));
+    lutData = readtable(fullfile(scalingpath,scalingfname), 'Delimiter', ','); % if this line errors out, use a csv for the LUT
     lut_identifier = table2array(lutData(:,"Var1"));
     ALs = table2cell(lutData(:,"Var2"));
     ppds = table2cell(lutData(:,"Var3"));
