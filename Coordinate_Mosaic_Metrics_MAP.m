@@ -167,6 +167,10 @@ for i=1:size(fnamelist,1)
 
             if isnan(scaleinput)
                 % Calculate the scale for this identifier.  
+                if ~iscell(lut_identifier)
+                    lut_identifier = num2cell(string(lut_identifier));
+                end 
+
                 LUTindex=find( cellfun(@(s) ~isempty(strfind(fnamelist{i},s )), lut_identifier ) );
                 axiallength = ALs{LUTindex};
                 pixelsperdegree = ppds{LUTindex};
