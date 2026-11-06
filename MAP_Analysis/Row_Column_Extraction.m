@@ -27,7 +27,7 @@
 
 clear all
 clc
-addpath('lib');
+addpath(fullfile(basePath,'lib'), '-begin');
 
 % user to select directory with data
 root_path_raw = uigetdir('.','Select directory containing raw csv analyses');

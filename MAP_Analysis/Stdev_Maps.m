@@ -23,7 +23,7 @@
 
 clear all
 clc
-addpath('lib');
+addpath(fullfile(basePath,'lib'), '-begin');
 
 clims = [0 25000]; % added to set limits of color scale, so all images use the same scale
 

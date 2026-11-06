@@ -105,7 +105,7 @@ set_seed = 1; % Set seed for the randperm fxn 1 == True 0 == False.
 basePath = which('Coordinate_Mosaic_Metrics_MAP.m');
 
 [basePath ] = fileparts(basePath);
-path(path,fullfile(basePath,'lib')); % Add our support library to the path.
+addpath(fullfile(basePath,'lib'), '-begin'); % Add our support library to the path.
 
 [basepath] = uigetdir(pwd);
 
@@ -113,7 +113,11 @@ path(path,fullfile(basePath,'lib')); % Add our support library to the path.
 [fnamelisttxt, isdirtxt ] = read_folder_contents(basepath,'txt');
 
 fnamelist = [fnamelist; fnamelisttxt];
-isadir = [isadir;isdirtxt];
+isadir = [isadir; isdirtxt];
+
+if iscell(isadir)
+    isadir = cell2mat(isadir);
+end
 
 % Commented out by MG on 3/2026 for the map only output 
 % liststr = {'microns (mm density)','degrees','arcmin'};
@@ -156,7 +160,7 @@ proghand = waitbar(0,'Processing...');
 for i=1:size(fnamelist,1)
 
     try
-        if ~isadir{i}
+        if ~isadir(i)
 
             
             if length(fnamelist{i})>42
