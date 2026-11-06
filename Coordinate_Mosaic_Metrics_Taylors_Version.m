@@ -320,13 +320,13 @@ for q = 2 :  length(subfolders)-1
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
             if isempty(windowsize)
-                result_fname_um = [getparent(subfolders{q},'short') '_coordstats_' date, '_um', '.csv'];
-                result_fname_deg = [getparent(subfolders{q},'short') '_coordstats_' date, '_deg', '.csv'];
-                result_fname_arcmin = [getparent(subfolders{q},'short') '_coordstats_' date, '_arcmin', '.csv'];
+                result_fname_um = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '_um', '.csv'];
+                result_fname_deg = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '_deg', '.csv'];
+                result_fname_arcmin = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '_arcmin', '.csv'];
             else
-                result_fname_um = [getparent(subfolders{q},'short') '_coordstats_' date '_' num2str(windowsize), '_um',  '.csv'];
-                result_fname_deg = [getparent(subfolders{q},'short') '_coordstats_' date '_' num2str(windowsize) , '_deg', '.csv'];
-                result_fname_arcmin = [getparent(subfolders{q},'short') '_coordstats_' date '_' num2str(windowsize) , '_arcmin', '.csv'];
+                result_fname_um = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')) '_' num2str(windowsize), '_um',  '.csv'];
+                result_fname_deg = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')) '_' num2str(windowsize) , '_deg', '.csv'];
+                result_fname_arcmin = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')) '_' num2str(windowsize) , '_arcmin', '.csv'];
             end
 
             % call write_metrics function
