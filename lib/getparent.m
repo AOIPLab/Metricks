@@ -30,6 +30,19 @@ if strcmp(returntype,'short')
     end
     
     kids='';
+elseif strcmp(returntype,'med')
+    indices=regexp(path,filesep);
+    
+    if height==0
+        parent=path(indices(end)+1:end );
+    elseif (height>0) && (height<length(indices))
+        parent=path(indices(end-2)+1:indices(end-(height-1))-1 );
+        parent = strrep(parent, '\', '_');
+    else
+        error('Incorrect height value- number must be positive and less than the length of the path');
+    end
+    
+    kids='';
 elseif strcmp(returntype,'full')
     indices=regexp(path,filesep);
     

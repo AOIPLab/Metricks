@@ -147,7 +147,7 @@ end
 basePath = which('Coordinate_Mosaic_Metrics.m');
 
 [basePath ] = fileparts(basePath);
-path(path,fullfile(basePath,'lib')); % Add our support library to the path.
+addpath(fullfile(basePath,'lib'), '-begin'); % Add our support library to the path.
 
 [basepath] = folder_path;
 
@@ -184,7 +184,12 @@ for q = 2 :  length(subfolders)-1
     [fnamelisttxt, isadirtxt ] = read_folder_contents(subfolders{q},'txt');
     
     fnamelist = [fnamelist_1; fnamelisttxt];
-    isadir = [isadir_1;isadirtxt];
+
+    isadir = [isadir_1; isadirtxt];
+
+    if iscell(isadir)
+        isadir = cell2mat(isadir);
+    end
 
 
     %% Process the data.
@@ -194,7 +199,7 @@ for q = 2 :  length(subfolders)-1
     for i=1:size(fnamelist,1)
     
         try
-            if ~isadir{i}
+            if ~isadir(i)
     
                 
                 if length(fnamelist{i})>42
@@ -319,14 +324,18 @@ for q = 2 :  length(subfolders)-1
             %% Write Results %%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+            % med is for top two folders to be included in the naming
+            % convention
+            % short is for just the parent folder to be included in the
+            % naming convention
             if isempty(windowsize)
-                result_fname_um = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '_um', '.csv'];
-                result_fname_deg = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '_deg', '.csv'];
-                result_fname_arcmin = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')), '_arcmin', '.csv'];
+                result_fname_um = strcat(getparent(subfolders{q},'med'), '_coordstats_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '_um', '.csv');
+                result_fname_deg = strcat(getparent(subfolders{q},'med'), '_coordstats_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '_deg', '.csv');
+                result_fname_arcmin = strcat(getparent(subfolders{q},'med'), '_coordstats_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '_arcmin', '.csv');
             else
-                result_fname_um = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')) '_' num2str(windowsize), '_um',  '.csv'];
-                result_fname_deg = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')) '_' num2str(windowsize) , '_deg', '.csv'];
-                result_fname_arcmin = [getparent(subfolders{q},'short') '_coordstats_' string(datetime('now','TimeZone','local','Format','yyyyMMdd_hhmmss')) '_' num2str(windowsize) , '_arcmin', '.csv'];
+                result_fname_um = strcat(getparent(subfolders{q},'med'), '_coordstats_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '_', num2str(windowsize), '_um',  '.csv');
+                result_fname_deg = strcat(getparent(subfolders{q},'med'), '_coordstats_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '_', num2str(windowsize) , '_deg', '.csv');
+                result_fname_arcmin = strcat(getparent(subfolders{q},'med'), '_coordstats_', string(datetime('now','TimeZone','local','Format','yyyyMMdd')), '_', num2str(windowsize) , '_arcmin', '.csv');
             end
 
             % call write_metrics function
