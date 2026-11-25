@@ -42,8 +42,8 @@ path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 % User selects folder with data
 dataPath = uigetdir('.','Select directory containing analyses');
 
-% Read in csv names and then have user select the LUT
-[fnameList] = read_folder_contents(dataPath,'csv');
+% Read in mat names and then have user select the LUT
+[fnameList] = read_folder_contents(dataPath,'mat');
 % select and load in filename of the LUT with CDC
 [LUTfilename, LUTpathname] = uigetfile('*.csv', 'Select file with CDC coords', dataPath);
 
@@ -85,7 +85,12 @@ for i=1:numFiles % Go through all files in list
     % Extract info from lut file and read in data
     CDC_x{i} = lutData{2}(LUTindex);
     CDC_y{i} = lutData{3}(LUTindex);
-    data{i} = readmatrix(fullfile(dataPath,fnameList{i}));
+
+    % Load in current map
+    CurrentMap = load(fullfile(root_path_raw,file_names{i}));
+    dummyName = fieldnames(CurrentMap);
+    data{i} = CurrentMap.(dummyName{1});
+    % data{i} = readmatrix(fullfile(dataPath,fnameList{i}));
 
     % Flip OS maps to match the OD maps so that the orientation matches
     if contains(fnameList{i}, 'OS')
