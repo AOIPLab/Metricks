@@ -1,5 +1,11 @@
-%% Batch_Run_Horizontal_Vertical_Density
+%% Batch_Radial_Density_Maltese_Cross previously named Batch_Run_Horizontal_Vertical_Density
 % Extract horizontal and vertical density profiles relative to CDC location
+% This was originally for Aliya's project.
+
+% NOTE: TO run this code you must have Extract_radial_densities_one.m
+% function. This is stored in the private repo of the same name.
+
+
 clear; clc;
 
 maltese = 0;
