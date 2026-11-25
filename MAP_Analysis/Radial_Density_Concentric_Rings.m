@@ -1,4 +1,4 @@
-% Radial Density
+% Radial Density Concentric Rings
 % AOIP
 % Created by: Jenna Grieshop
 % Date created: 4/22/2025
@@ -21,7 +21,7 @@ clc
 scaleFactor = 0.25; %umpp
 spacing = 5; %5 microns
 
-basepath = which('Radial_Density.m');
+basepath = which('Radial_Density_Concentric_Rings.m');
 [basepath] = fileparts(basepath);
 path(path,fullfile(basepath,'lib')); % Add our support library to the path.
 
