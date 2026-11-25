@@ -7,7 +7,7 @@ straight = 0;
 
 pixel_size = 0.25; % assume 0.25 umpp
 
-basePath = which('Batch_Run_Horizontal_Vertical_Density.m');
+basePath = which('Batch_Radial_Density_Maltese_Cross.m');
 
 [basePath ] = fileparts(basePath);
 path(path,fullfile(basePath,'lib')); % Add our support library to the path.
@@ -77,7 +77,7 @@ if straight == 1
     end
 end
 
-if maltese ==1
+if maltese == 1
     % Have the user select the thickness of the row/column extraction
     m2 = 'Please enter the desired maltese cross angle (degrees):';
     angle = inputdlg(m2);
